@@ -74,7 +74,10 @@ export class HttpKeeperHubClient implements KeeperHubClient {
       // We normalize here so callers always read `schema.type`.
       const normalize = (key: string, raw: ActionSchema): ActionSchema => ({
         ...raw,
-        type: raw.type ?? (raw as unknown as Record<string, unknown>).actionType as string ?? key,
+        type:
+          raw.type ??
+          ((raw as unknown as Record<string, unknown>).actionType as string) ??
+          key,
       });
 
       if (actions && typeof actions === "object" && !Array.isArray(actions)) {
@@ -87,7 +90,11 @@ export class HttpKeeperHubClient implements KeeperHubClient {
 
       if (schemas) {
         if (Array.isArray(schemas)) {
-          return ok(schemas.map((s) => normalize(s.type ?? "", s)).filter((s) => s.type));
+          return ok(
+            schemas
+              .map((s) => normalize(s.type ?? "", s))
+              .filter((s) => s.type),
+          );
         }
         if (typeof schemas === "object") {
           return ok(
@@ -138,7 +145,12 @@ export class HttpKeeperHubClient implements KeeperHubClient {
     nodes: Array<{
       id: string;
       type: string;
-      data: { type: string; label: string; config: Record<string, unknown>; status: "idle" };
+      data: {
+        type: string;
+        label: string;
+        config: Record<string, unknown>;
+        status: "idle";
+      };
       position: { x: number; y: number };
     }>;
     edges: Array<{ id: string; source: string; target: string }>;
@@ -173,15 +185,17 @@ export class HttpKeeperHubClient implements KeeperHubClient {
       }
 
       return {
-      id: node.id,
-      type: "action",
-      data: {
+        id: node.id,
         type: "action",
-        label: node.id.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-        config,
-        status: "idle" as const,
-      },
-      position: { x: 120, y: 240 + index * 160 },
+        data: {
+          type: "action",
+          label: node.id
+            .replace(/[-_]/g, " ")
+            .replace(/\b\w/g, (c) => c.toUpperCase()),
+          config,
+          status: "idle" as const,
+        },
+        position: { x: 120, y: 240 + index * 160 },
       };
     });
 
@@ -206,7 +220,10 @@ export class HttpKeeperHubClient implements KeeperHubClient {
       trigger.type.charAt(0).toUpperCase() + trigger.type.slice(1);
 
     if (trigger.type === "schedule") {
-      const { cron, ...rest } = trigger.config as { cron?: string } & Record<string, unknown>;
+      const { cron, ...rest } = trigger.config as { cron?: string } & Record<
+        string,
+        unknown
+      >;
       return {
         triggerType,
         ...(cron ? { scheduleCron: cron } : {}),
