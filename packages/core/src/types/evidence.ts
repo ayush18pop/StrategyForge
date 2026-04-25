@@ -1,3 +1,5 @@
+import type { KellyPrior, MarketRegime } from './pipeline.js';
+
 export interface EvidenceBundle {
   strategyFamily: string;
   version: number;
@@ -8,12 +10,35 @@ export interface EvidenceBundle {
 }
 
 export interface PipelineEvidence {
-  researcher: StepEvidence;
+  researcher: ResearcherEvidence;
   strategist: StepEvidence;
-  critic: StepEvidence;
-  compiler: { workflowSpec: Record<string, unknown> };
+  critic: CriticEvidence;
+  compiler: {
+    workflowSpec: Record<string, unknown>;
+    gasEstimate: number;           // monthly USD — gas estimation moved here from Simulator
+  };
   riskValidator: { passed: boolean; warnings: string[] };
-  simulator: { estimatedNetAPY: number; estimatedGasCost: number };
+}
+
+// Researcher evidence includes Kelly priors so they're in the audit trail
+export interface ResearcherEvidence extends StepEvidence {
+  output: {
+    regime: MarketRegime;
+    survivingProtocols: string[];
+    kellyPriors: KellyPrior[];
+    signals: { protocol: string; signal: string; severity: 'low' | 'medium' | 'high' }[];
+  };
+}
+
+// Critic evidence includes updated priors that feed the next version
+export interface CriticEvidence extends StepEvidence {
+  output: {
+    verdicts: Record<string, unknown>[];
+    selectedCandidateId: string;
+    selectionRationale: string;
+    mandatoryConstraints: string[];
+    updatedKellyPriors: KellyPrior[];   // loaded by Researcher in v(n+1)
+  };
 }
 
 export interface StepEvidence {

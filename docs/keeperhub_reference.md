@@ -210,14 +210,133 @@ KeeperHub exposes an MCP server. Any Claude Code, Cursor, or agent runtime that 
 
 | Tool | What It Does |
 |------|-------------|
-| `keeperhub.list_workflows` | List all your published workflows |
-| `keeperhub.create_workflow` | Define a new workflow with triggers + steps |
-| `keeperhub.run_workflow` | Execute a workflow immediately (manual trigger) |
-| `keeperhub.get_workflow_status` | Check execution status and logs |
-| `keeperhub.list_protocols` | List available DeFi protocol integrations |
-| `keeperhub.get_execution_logs` | Retrieve past execution logs with tx hashes |
-| `keeperhub.get_wallet_balance` | Check agent wallet balance |
-| `keeperhub.publish_workflow` | Publish workflow to marketplace (earns per call) |
+| `list_workflows` | List all your published workflows |
+| `create_workflow` | Create a workflow (nodes + edges graph format — see Workflow Structure below) |
+| `update_workflow` | Modify an existing workflow |
+| `delete_workflow` | Remove a workflow |
+| `execute_workflow` | Execute a workflow immediately (manual trigger / test) |
+| `get_workflow_status` | Check execution status and logs |
+| `get_execution_logs` | Retrieve past execution logs with tx hashes |
+| `publish_workflow` | Publish workflow to marketplace (earns per call) |
+| `get_wallet_balance` | Check agent wallet balance |
+| **`list_action_schemas`** | **Return all available action types and their config schemas — call this first. REST equivalent: `GET /api/mcp/schemas`. Response: `{ actions: Record<actionType, schema>, triggers, chains, ... }`.** |
+| `ai_generate_workflow` | Delegate workflow generation to KeeperHub's AI service (returns a draft to review) |
+| `search_plugins` | Filter action schemas by category (`web3`, `discord`, `system`, `triggers`). REST: `GET /api/mcp/schemas?category=web3` |
+| `get_plugin` | Alias for `search_plugins` scoped to one plugin type |
+| `search_protocol_actions` | Meta-tool: keyword search across all action names/descriptions. Filters the `actions` object client-side. |
+| `execute_protocol_action` | Meta-tool: execute any protocol action directly. `actionType` format: `"protocol/action-slug"`. REST: `POST /api/execute/{integration}/{slug}` |
+| `search_workflows` | Find listed (published) workflows callable by external agents. REST: `GET /api/mcp/workflows` |
+| `call_workflow` | Invoke a listed workflow by its slug. REST: `POST /api/mcp/workflows/{slug}/call` |
+| `validate_plugin_config` | Validate a node's config against its schema before creating the workflow |
+
+### Workflow Structure (nodes + edges DAG)
+
+`create_workflow` accepts an array of **node objects** and an array of **edge objects**. The MCP tool signature:
+
+```
+create_workflow(name, description?, nodes, edges, projectId?, tagId?)
+```
+
+#### Node Format
+
+Every node sent to the API has this shape:
+
+```json
+{
+  "id": "unique-node-id",
+  "type": "trigger",
+  "data": {
+    "type": "trigger",
+    "label": "Schedule Trigger",
+    "config": { "triggerType": "Schedule", "scheduleCron": "0 */6 * * *" },
+    "status": "idle"
+  },
+  "position": { "x": 120, "y": 80 }
+}
+```
+
+- **Trigger node**: outer `type = "trigger"`, `data.type = "trigger"`, config uses `triggerType` (capitalized) + trigger-specific keys (see table below)
+- **Action nodes**: outer `type = "action"` (always), `data.type = <actionType from list_action_schemas>` (e.g. `"web3/check-balance"`), config comes from the schema's `requiredFields`/`optionalFields`
+
+**The actionType string goes in `data.type`, NOT in the outer `type` field.**
+
+#### Trigger Config Keys
+
+| Trigger | `triggerType` | Required config key |
+|---------|--------------|-------------------|
+| Cron | `"Schedule"` | `scheduleCron: "*/5 * * * *"` |
+| Manual | `"Manual"` | — |
+| Webhook | `"Webhook"` | optional `webhookSchema`, `webhookMockRequest` |
+| Contract Event | `"Event"` | `network`, `contractAddress`, `contractABI`, `eventName` |
+| Block | `"Block"` | `network`, `blockInterval` |
+
+#### Edge Format
+
+```json
+{ "id": "trigger->node-1", "source": "trigger", "target": "node-1" }
+```
+
+For **Condition** nodes only: add `"sourceHandle": "true"` or `"sourceHandle": "false"` on outgoing edges.
+For **For Each** nodes only: `"sourceHandle": "loop"` (loop body) or `"sourceHandle": "done"` (after loop).
+All other node types: no `sourceHandle` needed.
+
+#### Minimal Working Example
+
+```json
+{
+  "name": "Aave yield monitor",
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "trigger",
+      "data": {
+        "type": "trigger",
+        "label": "Schedule Trigger",
+        "config": { "triggerType": "Schedule", "scheduleCron": "0 */6 * * *" },
+        "status": "idle"
+      },
+      "position": { "x": 120, "y": 80 }
+    },
+    {
+      "id": "check-balance",
+      "type": "action",
+      "data": {
+        "type": "web3/check-balance",
+        "label": "Check Balance",
+        "config": { "network": "8453", "address": "0xYOUR_WALLET" },
+        "status": "idle"
+      },
+      "position": { "x": 120, "y": 240 }
+    }
+  ],
+  "edges": [
+    { "id": "trigger->check-balance", "source": "trigger", "target": "check-balance" }
+  ]
+}
+```
+
+#### Action Type Format
+
+Action types follow `{pluginType}/{action-slug}` (e.g. `"web3/check-balance"`, `"aave-v3/supply"`). **Always discover these via `list_action_schemas` — never hardcode.** Use `validate_plugin_config` before `create_workflow` to catch config errors.
+
+#### Fallback: `web3/write-contract`
+
+If the target protocol has no native KeeperHub action type, use the generic `web3/write-contract` node with ABI-encoded calldata:
+
+```json
+{
+  "type": "web3/write-contract",
+  "config": {
+    "network": "8453",
+    "contractAddress": "0x...",
+    "functionName": "supply",
+    "functionArgs": "[\"0xUSDC\", \"100000000\", \"0xON_BEHALF_OF\", 0]",
+    "abi": "[{\"name\":\"supply\",\"type\":\"function\",\"inputs\":[...],\"outputs\":[]}]"
+  }
+}
+```
+
+For verified contracts, `abi` is auto-fetched from block explorers if omitted.
 
 ---
 
@@ -234,40 +353,104 @@ Content-Type: application/json
 
 Get API key from: <https://app.keeperhub.com/settings>
 
-### Key Endpoints
+### Actual REST Endpoints (verified from source)
+
+> These are the real paths. The `/api/v1/` prefix shown in older docs does not exist.
 
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
-| `POST` | `/api/v1/workflows` | Create workflow |
-| `GET` | `/api/v1/workflows` | List workflows |
-| `GET` | `/api/v1/workflows/:id` | Get specific workflow |
-| `POST` | `/api/v1/workflows/:id/run` | Run workflow manually |
-| `GET` | `/api/v1/workflows/:id/executions` | List executions |
-| `GET` | `/api/v1/executions/:id/logs` | Get execution logs |
-| `GET` | `/api/v1/wallet/balance` | Check wallet balance |
-| `POST` | `/api/v1/workflows/:id/publish` | Publish to marketplace |
+| `GET` | `/api/workflows` | List workflows (filter: `?projectId=`, `?tagId=`) |
+| `GET` | `/api/workflows/:id` | Get workflow by ID |
+| `POST` | `/api/workflows/create` | Create workflow (nodes + edges body) |
+| `PATCH` | `/api/workflows/:id` | Update workflow |
+| `DELETE` | `/api/workflows/:id` | Delete workflow |
+| `POST` | `/api/workflow/:id/execute` | Execute workflow manually (note: singular `workflow`) |
+| `GET` | `/api/workflows/executions/:id/status` | Poll execution status |
+| `GET` | `/api/workflows/executions/:id/logs` | Get step-level logs |
+| `GET` | `/api/mcp/schemas` | All action schemas (= `list_action_schemas`) |
+| `GET` | `/api/mcp/schemas?category=web3` | Filtered schemas (= `search_plugins`) |
+| `POST` | `/api/ai/generate` | AI generate workflow |
+| `GET` | `/api/mcp/workflows` | Listed/published workflows |
+| `POST` | `/api/mcp/workflows/:slug/call` | Call a listed workflow by slug |
+| `POST` | `/api/execute/transfer` | Direct token transfer |
+| `POST` | `/api/execute/contract-call` | Direct contract call |
+| `POST` | `/api/execute/:integration/:slug` | Direct protocol action |
+| `GET` | `/api/execute/:id/status` | Direct execution status |
+| `GET` | `/api/integrations` | List configured integrations (credentials) |
+| `GET` | `/api/integrations/:id` | Get specific integration |
+| `GET` | `/api/projects` | List projects |
+| `GET` | `/api/tags` | List tags |
+
+### `list_action_schemas` Response Shape
+
+```json
+{
+  "version": "1.0.0",
+  "generatedAt": "...",
+  "actions": {
+    "web3/check-balance": {
+      "actionType": "web3/check-balance",
+      "label": "Check Balance",
+      "description": "...",
+      "category": "web3",
+      "requiresCredentials": false,
+      "requiredFields": { "network": "string (chain ID)", "address": "string" },
+      "optionalFields": {},
+      "outputFields": { "balance": "..." }
+    }
+  },
+  "triggers": {
+    "Schedule": { "triggerType": "Schedule", "requiredFields": { "scheduleCron": "string" } },
+    "Manual": { "triggerType": "Manual", "requiredFields": {} },
+    "Webhook": { "triggerType": "Webhook", "requiredFields": {} },
+    "Event":   { "triggerType": "Event",   "requiredFields": { "network", "contractAddress", "contractABI", "eventName" } },
+    "Block":   { "triggerType": "Block",   "requiredFields": { "network", "blockInterval" } }
+  },
+  "chains": [{ "chainId": 1, "name": "Ethereum", ... }],
+  "templateSyntax": { "pattern": "{{@nodeId:Label.field}}", ... },
+  "workflowStructure": { ... }
+}
+```
+
+Extract action types: `Object.values(response.actions)` — each has `actionType`, `label`, `requiredFields`, `optionalFields`.
 
 ### Create Workflow (REST)
 
 ```bash
-curl -X POST https://api.keeperhub.com/api/v1/workflows \
+curl -X POST https://api.keeperhub.com/api/workflows/create \
   -H "Authorization: Bearer $KEEPERHUB_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Aave yield monitor",
-    "trigger": { "type": "cron", "schedule": "0 * * * *" },
-    "steps": [
-      { "action": "aave.get_borrow_rate", "params": { "asset": "USDC", "chain": "mainnet" } },
-      { "action": "keeperhub.notify", "if": "borrow_rate > 0.08" }
+    "nodes": [
+      {
+        "id": "trigger", "type": "trigger",
+        "data": { "type": "trigger", "label": "Schedule Trigger",
+                  "config": { "triggerType": "Schedule", "scheduleCron": "0 * * * *" },
+                  "status": "idle" },
+        "position": { "x": 120, "y": 80 }
+      },
+      {
+        "id": "check-apy", "type": "action",
+        "data": { "type": "web3/check-balance", "label": "Check APY",
+                  "config": { "network": "1", "address": "0x..." },
+                  "status": "idle" },
+        "position": { "x": 120, "y": 240 }
+      }
+    ],
+    "edges": [
+      { "id": "trigger->check-apy", "source": "trigger", "target": "check-apy" }
     ]
   }'
 ```
 
-### Trigger Workflow Manually (REST)
+### Execute Workflow Manually (REST)
 
 ```bash
-curl -X POST https://api.keeperhub.com/api/v1/workflows/wf_abc123/run \
-  -H "Authorization: Bearer $KEEPERHUB_API_KEY"
+# Note: singular /workflow/, not /workflows/
+curl -X POST https://api.keeperhub.com/api/workflow/wf_abc123/execute \
+  -H "Authorization: Bearer $KEEPERHUB_API_KEY" \
+  -d '{ "input": {} }'
 ```
 
 ---
@@ -577,7 +760,145 @@ Key points from KeeperHub's head of growth (Luca):
 
 ---
 
-## 23. Sources
+## 23. StrategyForge-Specific: How Monitoring + Versioning Works
+
+### The Two Cron Jobs (Do Not Confuse Them)
+
+| Cron | Runs Where | Watches | Triggers |
+|------|-----------|---------|----------|
+| **Strategy monitor** | KeeperHub workflow (one per strategy family) | Market APYs, protocol signals, Analytics API | Pipeline to create v(n+1) if drift detected |
+| **User deployment** | KeeperHub workflow (one per user per strategy) | User's actual position, balance, yield accrued | Rebalance or notification for that user only |
+
+These are separate workflows. The strategy monitor is NOT the user's workflow.
+
+### Critical Rule: New Version = New Workflow, Never Update
+
+When the strategy monitor detects drift and v2 is generated:
+
+```
+❌ WRONG: Update existing KeeperHub workflow (mutates all user deployments)
+✅ RIGHT: Create NEW KeeperHub workflow for v2, notify users to migrate
+```
+
+Users on v1 keep running v1 untouched. They get a notification: "v2 available — updated Kelly priors, better allocation." They choose to deploy v2. That creates a new deployment instance for them. Their v1 keeps running until they explicitly stop it.
+
+### Strategy Monitor Workflow (What We Create)
+
+Uses nodes + edges format. Action types come from `list_action_schemas` on day 1.
+
+```json
+{
+  "name": "StrategyForge monitor: conservative-yield",
+  "nodes": [
+    {
+      "id": "trigger", "type": "trigger",
+      "data": {
+        "type": "trigger", "label": "Schedule Trigger",
+        "config": { "triggerType": "Schedule", "scheduleCron": "0 */6 * * *" },
+        "status": "idle"
+      },
+      "position": { "x": 120, "y": 80 }
+    },
+    {
+      "id": "fetch-apys", "type": "action",
+      "data": {
+        "type": "HTTP Request",
+        "label": "Fetch APYs",
+        "config": { "endpoint": "https://yields.llama.fi/pools", "httpMethod": "GET" },
+        "status": "idle"
+      },
+      "position": { "x": 120, "y": 240 }
+    },
+    {
+      "id": "check-drift", "type": "action",
+      "data": {
+        "type": "Condition",
+        "label": "APY Drift > 0.5%?",
+        "config": {
+          "condition": "{{@fetch-apys:Fetch APYs.data.apy_delta}} > 0.005"
+        },
+        "status": "idle"
+      },
+      "position": { "x": 120, "y": 400 }
+    },
+    {
+      "id": "trigger-pipeline", "type": "action",
+      "data": {
+        "type": "HTTP Request",
+        "label": "Trigger StrategyForge Pipeline",
+        "config": {
+          "endpoint": "https://strategyforge.api/trigger-update",
+          "httpMethod": "POST"
+        },
+        "status": "idle"
+      },
+      "position": { "x": 120, "y": 560 }
+    }
+  ],
+  "edges": [
+    { "id": "trigger->fetch-apys", "source": "trigger", "target": "fetch-apys" },
+    { "id": "fetch-apys->check-drift", "source": "fetch-apys", "target": "check-drift" },
+    { "id": "check-drift->trigger-pipeline", "source": "check-drift", "target": "trigger-pipeline",
+      "sourceHandle": "true" }
+  ]
+}
+```
+
+### Analytics API — What the Monitor Reads
+
+The monitor uses the Analytics API to determine if a strategy is underperforming.
+
+**Get overall success rate:**
+```http
+GET /api/analytics/summary?range=7d
+```
+Response includes `successRate` — if < 80%, something is wrong.
+
+**Get step-by-step logs for failed runs:**
+```http
+GET /api/analytics/runs/{executionId}/steps
+```
+Response shows exactly which step failed and why (revert reason, gas spike, etc.).
+
+**Get execution history for trend analysis:**
+```http
+GET /api/analytics/runs?range=30d&source=workflow&status=error
+```
+Use this to detect a pattern of failures — not just one-off errors.
+
+**Full Analytics API endpoints:**
+
+| Method | Endpoint | What We Use It For |
+|--------|----------|-------------------|
+| `GET` | `/api/analytics/summary?range=7d` | Overall success rate + gas used |
+| `GET` | `/api/analytics/time-series?range=30d` | Trend — is performance worsening over time? |
+| `GET` | `/api/analytics/runs?status=error` | Which runs failed |
+| `GET` | `/api/analytics/runs/{executionId}/steps` | Why a specific run failed (step-level) |
+| `GET` | `/api/analytics/networks` | Which chain is causing failures |
+| `GET` | `/api/analytics/spend-cap` | Gas budget remaining |
+| `GET` | `/api/analytics/stream` | SSE for real-time dashboard updates |
+
+### What Triggers a New Strategy Version
+
+The monitor calls our pipeline webhook when any of these:
+
+| Trigger | Threshold | Source |
+|---------|-----------|--------|
+| APY drift | any protocol drifts > 1% from baseline | DefiLlama |
+| Execution success rate | < 80% over 7 days | Analytics API `/summary` |
+| Step failure pattern | same step failing 3+ times | Analytics API `/runs/{id}/steps` |
+| Protocol incident | exploit, governance vote, TVL drop > 20% | Researcher LLM signal |
+| Scheduled review | every 30 days regardless | Cron |
+
+### User API — What It Is and Why We Don't Use It
+
+`GET/PATCH /api/user` manages the authenticated user's own profile, wallet, and RPC preferences. It is scoped to the calling user only.
+
+**We do not use it.** It cannot read or modify other users' deployments. Our architecture doesn't need it — users manage their own deployments through their own KeeperHub account.
+
+---
+
+## 24. Sources
 
 - <https://keeperhub.com>
 - <https://keeperhub.com/blog/008-first-hackathon-openagents>

@@ -1,4 +1,4 @@
-export type Lifecycle = 'draft' | 'paper' | 'canary' | 'stable' | 'deprecated';
+export type Lifecycle = 'draft' | 'live' | 'deprecated';
 export type RiskLevel = 'conservative' | 'balanced';
 export type Protocol = 'aave' | 'morpho' | 'spark';
 export type Chain = 'ethereum' | 'base';
@@ -34,5 +34,5 @@ export interface StrategyFamily {
   familyId: string;
   goal: StrategyGoal;
   versions: StrategyVersion[];
-  latestStable?: string;
+  latestLive?: string;
 }

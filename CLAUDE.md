@@ -6,10 +6,21 @@
 ## What This Project Does
 
 1. User says: "I have $50K USDC, medium risk, Ethereum"
-2. Agent searches existing strategies with on-chain reputation (ERC-8004)
+2. Agent searches existing strategies with on-chain reputation (AgentRegistry + ReputationLedger)
 3. If proven match → deploy as user's KeeperHub workflow
-4. If no match → create new one via 7-step pipeline (TEE-attested on 0G Compute)
-5. After every run: outcome posted on-chain, strategy evolves, iNFT brain updates
+4. If no match → run pipeline (Kelly math + TEE-attested LLM reasoning) → create strategy
+5. After every run: outcome posted to ReputationLedger on-chain
+6. Monitor cron detects drift → UpdateOrchestrator → pipeline runs again → v(n+1) created
+7. After every pipeline run: iNFT brainCid updated on-chain (agent's knowledge evolves)
+
+## iNFT Role (important)
+
+The iNFT (ERC-7857-inspired simplified, tokenId=1) IS the StrategyForge agent — not the user, not a strategy.
+Note: We implement a simplified subset of ERC-7857 (no proof-verified transfer, no clone/authorizeUsage). Full spec in `docs/erc7857_reference.md`.
+- brainCid → 0G Storage brain root, updated after every pipeline run
+- ERC-6551 TBA wallet → earns x402 fees when users run strategies
+- agentId in AgentRegistry = iNFT tokenId → reputation is the agent's track record
+The iNFT is updated in the SERVER LAYER after the pipeline, not inside the pipeline itself.
 
 ## Tech Stack
 
@@ -17,7 +28,7 @@
 - **0G Compute:** `@0glabs/0g-serving-broker` — sealed inference with TEE attestation
 - **0G Storage:** `@0gfoundation/0g-ts-sdk` — Merkle-root blobs + KV store for priorCids DAG
 - **KeeperHub:** MCP server — create/run/publish workflows, x402 payments
-- **Contracts:** Solidity 0.8.24, Hardhat — ERC-7857 iNFT, ERC-6551 TBA, ERC-8004 registries
+- **Contracts:** Solidity 0.8.24, Hardhat — ERC-7857-inspired iNFT (simplified), ERC-6551 TBA, AgentRegistry, ReputationLedger
 - **Dashboard:** React 18 + Vite
 - **DeFi Data:** DefiLlama REST API + Uniswap Trading API
 
@@ -33,7 +44,7 @@ strategyforge/
 │   ├── pipeline/      # 7-step strategy pipeline (researcher→strategist→critic→compiler)
 │   ├── keeperhub/     # KeeperHub MCP client wrapper
 │   ├── contracts/     # Solidity contracts (ERC-7857, 6551, 8004)
-│   ├── server/        # StrategyForge MCP server (5 tools)
+│   ├── server/        # StrategyForge MCP server (3 MVP tools)
 │   └── dashboard/     # React + Vite UI
 ├── docs/              # Architecture, reference docs
 └── .agents/workflows/ # AI coding workflows
@@ -80,6 +91,7 @@ KEEPERHUB_API_URL=https://api.keeperhub.com          # KeeperHub API base
 
 - Full product spec: `docs/strategyforge_final.md`
 - 0G SDK reference: `docs/0g_reference.md`
+- ERC-7857 iNFT reference: `docs/erc7857_reference.md`
 - KeeperHub reference: `docs/keeperhub_reference.md`
 - Architecture & tickets: `docs/architecture.md`
 - Type definitions: `packages/core/src/types/`

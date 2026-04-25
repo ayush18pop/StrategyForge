@@ -4,6 +4,11 @@
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {
-    "test": "bun test"
+    "test": "bun test",
+    "smoke:create-workflow": "bun run src/smoke-create-workflow.ts",
+    "schemas:dump": "bun run src/dump-action-schemas.ts"
+  },
+  "dependencies": {
+    "@strategyforge/core": "workspace:*"
   }
 }

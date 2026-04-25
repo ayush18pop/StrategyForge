@@ -17,14 +17,22 @@ Typed clients for fetching DeFi protocol data. These feed the Researcher pipelin
 import type { ProtocolData } from '@strategyforge/core';
 import type { Result } from '@strategyforge/core';
 
+export interface HistoricalAPY {
+  date: number;      // unix timestamp
+  apy: number;
+}
+
 export interface DefiLlamaClient {
   getYieldPools(params: {
     chains?: string[];
     stablecoinsOnly?: boolean;
-    minTvl?: number;           // filter pools with TVL below this
+    minTvl?: number;
   }): Promise<Result<ProtocolData[]>>;
 
   getProtocolTVL(protocol: string): Promise<Result<{ tvl: number; change7d: number }>>;
+
+  // Needed for sigma (std deviation) computation in Kelly priors + VaR
+  getHistoricalAPY(poolId: string, days?: number): Promise<Result<HistoricalAPY[]>>;
 }
 ```
 
@@ -32,8 +40,19 @@ export interface DefiLlamaClient {
 
 - **Yields:** `GET https://yields.llama.fi/pools` — returns all pools with APY, TVL, chain
 - **TVL:** `GET https://api.llama.fi/tvl/{protocol}` — returns current TVL
+- **Historical APY:** `GET https://yields.llama.fi/chart/{poolId}` — returns daily APY history
+  - Use this to compute `sigma` (30-day std deviation) for each protocol
+  - `sigma = stddev(last 30 days of APY values)`
+  - This feeds Kelly prior computation and VaR in the Critic step
 - Filter by: `stablecoin === true`, `tvlUsd > minTvl`, `chain` match
 - Map response to our `ProtocolData` type
+
+### Pool IDs for MVP protocols
+
+These are stable pool IDs for the 3 MVP protocols:
+- Aave USDC on Ethereum: `pool` field in yields API where `project === "aave-v3"` and `chain === "Ethereum"` and `symbol.includes("USDC")`
+- Morpho Curated: `project === "morpho"` curated vaults
+- Spark: `project === "spark"` and `symbol.includes("USDC")`
 
 ## File: `packages/data/src/uniswap.ts`
 

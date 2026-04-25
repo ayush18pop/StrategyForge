@@ -2,9 +2,30 @@
   "name": "strategyforge",
   "version": "0.1.0",
   "private": true,
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
+    "dev": "bun --cwd packages/server run dev",
+    "start": "bun --cwd packages/server run start",
+    "build": "bun --cwd packages/server run build",
+    "server:type-check": "bun --cwd packages/server run type-check",
     "test": "bun test",
-    "test:compute": "cd packages/compute && bun test"
+    "test:compute": "bun --cwd packages/compute run test",
+    "test:server": "bun --cwd packages/server run test"
+  },
+  "dependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.6.0",
+    "axios": "^1.15.2",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "typescript": "^6.0.3"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
   }
 }

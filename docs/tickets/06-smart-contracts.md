@@ -48,43 +48,96 @@ contract StrategyForgeINFT is ERC721, Ownable {
 }
 ```
 
-### Contract 2: `IdentityRegistry.sol` (ERC-8004)
+### Contract 2: `AgentRegistry.sol` — WE DEPLOY THIS
 
-On-chain strategy discovery.
-
-```solidity
-struct StrategyRegistration {
-    address creator;
-    string cid;                // 0G Storage CID
-    uint256 pricePerRun;       // in wei
-    uint256 registeredAt;
-    bool active;
-}
-
-function registerStrategy(bytes32 strategyId, string calldata cid, uint256 pricePerRun) external;
-function updateStrategy(bytes32 strategyId, string calldata newCid) external;
-function deactivateStrategy(bytes32 strategyId) external;
-function getStrategy(bytes32 strategyId) external view returns (StrategyRegistration memory);
-function getStrategiesByCreator(address creator) external view returns (bytes32[] memory);
-```
-
-### Contract 3: `ReputationRegistry.sol` (ERC-8004)
-
-Per-strategy track record.
+> ERC-8004 is not deployed on 0G Chain. We deploy our own purpose-built registry contracts. ~60 lines each.
 
 ```solidity
-struct Reputation {
-    uint256 totalRuns;
-    uint256 successCount;
-    uint256 totalYieldBps;     // sum of all yield basis points
-    uint256 lastRunAt;
-}
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
 
-function postOutcome(bytes32 strategyId, uint256 yieldBps, bool success) external;
-function getReputation(bytes32 strategyId) external view returns (uint256 avgYieldBps, uint256 totalRuns, uint256 successRate);
+contract AgentRegistry {
+    uint256 private _nextId;
+    mapping(uint256 => string) private _agentURIs;
+
+    event AgentRegistered(uint256 indexed agentId, string agentURI);
+
+    function register(string calldata agentURI) external returns (uint256 agentId) {
+        agentId = _nextId++;
+        _agentURIs[agentId] = agentURI;
+        emit AgentRegistered(agentId, agentURI);
+    }
+
+    function getAgent(uint256 agentId) external view returns (string memory) {
+        return _agentURIs[agentId];
+    }
+}
 ```
 
-### Contract 4: `TBAFactory.sol` (ERC-6551 helper)
+```typescript
+// Register agent ONCE on deploy
+const agentId = await agentRegistry.register(agentMetadataCid);
+// agentMetadataCid → JSON on 0G Storage:
+// { name: "StrategyForge", mcpEndpoint: "...", x402Wallet: "0xERC6551Wallet" }
+// Save agentId (= 1) — used in all ReputationLedger calls
+```
+
+### Contract 3: `ReputationLedger.sol` — WE DEPLOY THIS
+
+> **Yield is self-reported.** The server layer calls `record()` after KeeperHub execution. There is no on-chain proof that the yield number matches actual execution. This is acceptable for a hackathon. `onlyOwner` access control prevents arbitrary callers from inflating reputation.
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract ReputationLedger is Ownable {
+    struct Record {
+        int256 yieldBps;
+        bytes32 evidenceCid;
+        uint256 timestamp;
+    }
+
+    mapping(uint256 => mapping(string => Record[])) private _records;
+
+    event OutcomeRecorded(uint256 indexed agentId, string strategyTag, int256 yieldBps);
+
+    constructor() Ownable(msg.sender) {}
+
+    // onlyOwner: only the agent operator wallet (deployer) can record outcomes
+    function record(
+        uint256 agentId,
+        string calldata strategyTag,
+        int256 yieldBps,
+        bytes32 evidenceCid
+    ) external onlyOwner {
+        _records[agentId][strategyTag].push(Record(yieldBps, evidenceCid, block.timestamp));
+        emit OutcomeRecorded(agentId, strategyTag, yieldBps);
+    }
+
+    function getSummary(uint256 agentId, string calldata strategyTag)
+        external view returns (uint256 runCount, int256 avgYieldBps)
+    {
+        Record[] storage records = _records[agentId][strategyTag];
+        runCount = records.length;
+        if (runCount == 0) return (0, 0);
+        int256 sum;
+        for (uint256 i = 0; i < runCount; i++) sum += records[i].yieldBps;
+        avgYieldBps = sum / int256(runCount);
+    }
+}
+```
+
+```typescript
+// Called in server layer after every KeeperHub execution completes
+await reputationLedger.record(
+  1,                             // agentId
+  `${familyId}-v${version}`,     // e.g. "conservative-yield-v3"
+  820,                           // 8.20% yield in bps
+  keccak256(Buffer.from(evidenceBundleCid))
+);
+```
 
 Uses the standard ERC-6551 registry to create a Token Bound Account for our iNFT.
 
@@ -95,19 +148,25 @@ function getAccount(address nftContract, uint256 tokenId) external view returns 
 
 ## Deploy Script
 
-`scripts/deploy.ts` — deploys all 4, logs addresses, verifies on explorer.
+`scripts/deploy.ts` — deploys all 4 contracts, logs addresses, verifies on explorer.
+
+Deployment order:
+1. `StrategyForgeINFT.sol` → mint tokenId=1 with initial brainCid
+2. `AgentRegistry.sol` → register(metadataCid) → agentId=1
+3. `ReputationLedger.sol` → no init needed
+4. ERC-6551 TBA → createAccount(iNFTAddress, tokenId=1)
 
 ## Tests
 
 Write Hardhat tests for:
 
 1. Mint iNFT → verify brainCid stored → update brain → verify new CID
-2. Register strategy → get strategy → verify fields
-3. Post 3 outcomes → get reputation → verify average calculation
+2. AgentRegistry: register → getAgent → verify CID returned
+3. ReputationLedger: record 3 outcomes → getSummary → verify runCount=3 and avgYieldBps correct
 4. Create TBA → verify it can receive ETH
 
 ## Do NOT
 
-- Do NOT implement ERC-8004 Validation Registry (on-chain TEE verification is out of scope)
+- Do NOT implement any Validation Registry (on-chain TEE verification is out of scope — handled off-chain via broker.inference.processResponse)
 - Do NOT add complex access control beyond ownerOf checks
 - Keep contracts simple and auditable
