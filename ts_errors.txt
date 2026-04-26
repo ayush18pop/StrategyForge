@@ -1,0 +1,47 @@
+packages/compute/src/sealed-inference.test.ts(1,56): error TS2307: Cannot find module 'bun:test' or its corresponding type declarations.
+packages/compute/src/sealed-inference.test.ts(163,34): error TS7006: Parameter '_' implicitly has an 'any' type.
+packages/dashboard/src/App.tsx(2,23): error TS2307: Cannot find module './assets/react.svg' or its corresponding type declarations.
+packages/dashboard/src/App.tsx(3,22): error TS2307: Cannot find module './assets/vite.svg' or its corresponding type declarations.
+packages/dashboard/src/App.tsx(4,21): error TS2307: Cannot find module './assets/hero.png' or its corresponding type declarations.
+packages/dashboard/src/App.tsx(5,8): error TS2882: Cannot find module or type declarations for side-effect import of './App.css'.
+packages/dashboard/src/components/primitives/PublicShell.tsx(85,52): error TS2812: Property 'style' does not exist on type 'HTMLElement'. Try changing the 'lib' compiler option to include 'dom'.
+packages/dashboard/src/components/primitives/PublicShell.tsx(86,52): error TS2812: Property 'style' does not exist on type 'HTMLElement'. Try changing the 'lib' compiler option to include 'dom'.
+packages/dashboard/src/components/primitives/PublicShell.tsx(89,52): error TS2812: Property 'style' does not exist on type 'HTMLElement'. Try changing the 'lib' compiler option to include 'dom'.
+packages/dashboard/src/components/primitives/PublicShell.tsx(90,52): error TS2812: Property 'style' does not exist on type 'HTMLElement'. Try changing the 'lib' compiler option to include 'dom'.
+packages/dashboard/src/components/primitives/PublicShell.tsx(114,50): error TS2812: Property 'style' does not exist on type 'HTMLElement'. Try changing the 'lib' compiler option to include 'dom'.
+packages/dashboard/src/components/primitives/PublicShell.tsx(115,50): error TS2812: Property 'style' does not exist on type 'HTMLElement'. Try changing the 'lib' compiler option to include 'dom'.
+packages/dashboard/src/components/primitives/PublicShell.tsx(118,50): error TS2812: Property 'style' does not exist on type 'HTMLElement'. Try changing the 'lib' compiler option to include 'dom'.
+packages/dashboard/src/components/primitives/PublicShell.tsx(119,50): error TS2812: Property 'style' does not exist on type 'HTMLElement'. Try changing the 'lib' compiler option to include 'dom'.
+packages/dashboard/src/components/primitives/PublicShell.tsx(143,50): error TS2812: Property 'style' does not exist on type 'HTMLElement'. Try changing the 'lib' compiler option to include 'dom'.
+packages/dashboard/src/components/primitives/PublicShell.tsx(144,50): error TS2812: Property 'style' does not exist on type 'HTMLElement'. Try changing the 'lib' compiler option to include 'dom'.
+packages/dashboard/src/components/primitives/PublicShell.tsx(147,50): error TS2812: Property 'style' does not exist on type 'HTMLElement'. Try changing the 'lib' compiler option to include 'dom'.
+packages/dashboard/src/components/primitives/PublicShell.tsx(148,50): error TS2812: Property 'style' does not exist on type 'HTMLElement'. Try changing the 'lib' compiler option to include 'dom'.
+packages/dashboard/src/features/marketing/PublicLandingPage.tsx(149,9): error TS2304: Cannot find name 'requestAnimationFrame'.
+packages/dashboard/src/features/marketing/PublicLandingPage.tsx(155,5): error TS2304: Cannot find name 'requestAnimationFrame'.
+packages/dashboard/src/main.tsx(6,8): error TS2882: Cannot find module or type declarations for side-effect import of './styles/globals.css'.
+packages/dashboard/src/main.tsx(8,12): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+packages/dashboard/src/theme/ThemeProvider.tsx(18,10): error TS2304: Cannot find name 'window'.
+packages/dashboard/src/theme/ThemeProvider.tsx(26,16): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+packages/dashboard/src/theme/ThemeProvider.tsx(48,16): error TS2304: Cannot find name 'window'.
+packages/data/src/defillama.ts(40,41): error TS18046: 'data' is of type 'unknown'.
+packages/data/src/defillama.ts(72,25): error TS18046: 'data' is of type 'unknown'.
+packages/data/src/defillama.ts(72,37): error TS18046: 'data' is of type 'unknown'.
+packages/data/src/defillama.ts(72,59): error TS18046: 'data' is of type 'unknown'.
+packages/data/src/defillama.ts(72,68): error TS18046: 'data' is of type 'unknown'.
+packages/data/src/defillama.ts(76,41): error TS18046: 'data' is of type 'unknown'.
+packages/data/src/defillama.ts(96,44): error TS18046: 'data' is of type 'unknown'.
+packages/data/test/defillama.test.ts(1,58): error TS2307: Cannot find module 'bun:test' or its corresponding type declarations.
+packages/data/test/defillama.test.ts(42,20): error TS2532: Object is possibly 'undefined'.
+packages/data/test/defillama.test.ts(43,20): error TS2532: Object is possibly 'undefined'.
+packages/data/test/defillama.test.ts(51,20): error TS2532: Object is possibly 'undefined'.
+packages/data/test/defillama.test.ts(52,20): error TS2532: Object is possibly 'undefined'.
+packages/data/test/defillama.test.ts(90,20): error TS2532: Object is possibly 'undefined'.
+packages/data/test/defillama.test.ts(98,20): error TS2532: Object is possibly 'undefined'.
+packages/data/test/defillama.test.ts(99,20): error TS2532: Object is possibly 'undefined'.
+packages/keeperhub/src/dump-action-schemas.ts(33,44): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+packages/keeperhub/src/dump-action-schemas.ts(33,52): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+packages/storage/src/evidence-store.test.ts(1,56): error TS2307: Cannot find module 'bun:test' or its corresponding type declarations.
+packages/storage/src/kv-store.test.ts(1,56): error TS2307: Cannot find module 'bun:test' or its corresponding type declarations.
+test-monorepo-keeperhub.ts(23,9): error TS2322: Type '"cron"' is not assignable to type '"schedule" | "manual" | "webhook" | "event"'.

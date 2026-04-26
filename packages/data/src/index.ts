@@ -1,1 +1,1 @@
-// stub
+export * from './defillama';

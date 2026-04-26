@@ -1,0 +1,40 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from 'sonner';
+import { ThemeProvider } from '../theme/ThemeProvider';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      retry: 2,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+interface ProvidersProps {
+  children: React.ReactNode;
+}
+
+export function Providers({ children }: ProvidersProps) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        {children}
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            style: {
+              background: 'var(--bg-3)',
+              border: '1px solid var(--edge-sides)',
+              borderTopColor: 'var(--edge-top)',
+              color: 'var(--text-primary)',
+              fontFamily: 'var(--font-sans)',
+              fontSize: 'var(--fs-sm)',
+            },
+          }}
+        />
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+}

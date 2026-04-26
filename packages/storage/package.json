@@ -5,5 +5,10 @@
   "main": "./src/index.ts",
   "scripts": {
     "test": "bun test"
+  },
+  "dependencies": {
+    "@strategyforge/core": "workspace:*",
+    "@0gfoundation/0g-ts-sdk": "latest",
+    "ethers": "^6"
   }
 }

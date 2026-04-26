@@ -1,9 +1,49 @@
 {
-  "name": "@strategyforge/dashboard",
-  "version": "0.1.0",
+  "name": "dashboard",
+  "private": true,
+  "version": "0.0.0",
   "type": "module",
-  "main": "./src/index.ts",
   "scripts": {
-    "test": "bun test"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-popover": "^1.1.15",
+    "@radix-ui/react-slider": "^1.3.6",
+    "@radix-ui/react-switch": "^1.2.6",
+    "@radix-ui/react-tabs": "^1.1.13",
+    "@radix-ui/react-toast": "^1.2.15",
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "@tanstack/react-query": "5",
+    "autoprefixer": "^10.5.0",
+    "framer-motion": "11",
+    "geist": "^1.7.0",
+    "lucide-react": "^1.11.0",
+    "postcss": "^8.5.10",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-router-dom": "6",
+    "reactflow": "11",
+    "recharts": "2",
+    "sonner": "^2.0.7",
+    "tailwindcss": "3",
+    "zustand": "4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.12.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "eslint": "^10.2.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.5.0",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.58.2",
+    "vite": "^8.0.10"
   }
 }

@@ -1,8 +1,8 @@
-import { ethers } from 'ethers';
-import { createZGComputeNetworkBroker } from '@0glabs/0g-serving-broker';
-import { createHash } from 'crypto';
-import { ok, err } from '@strategyforge/core';
-import type { SealedInferenceResult, Result } from '@strategyforge/core';
+import { ethers } from "ethers";
+import { createZGComputeNetworkBroker } from "@0glabs/0g-serving-broker";
+import { createHash } from "crypto";
+import { ok, err } from "@strategyforge/core";
+import type { SealedInferenceResult, Result } from "@strategyforge/core";
 
 export interface SealedInferenceConfig {
   privateKey: string;
@@ -34,13 +34,24 @@ export class SealedInference {
 
       const services = await this.broker.inference.listService();
       if (services.length === 0) {
-        return err(new Error('No inference services available on 0G Compute'));
+        return err(new Error("No inference services available on 0G Compute"));
       }
 
-      this.providerAddress = services[0].provider as string;
-      await this.broker.inference.acknowledgeProviderSigner(this.providerAddress);
+      const firstService = services[0];
+      if (!firstService?.provider) {
+        return err(
+          new Error("0G Compute service entry is missing provider address"),
+        );
+      }
 
-      const meta = await this.broker.inference.getServiceMetadata(this.providerAddress);
+      this.providerAddress = firstService.provider as string;
+      await this.broker.inference.acknowledgeProviderSigner(
+        this.providerAddress,
+      );
+
+      const meta = await this.broker.inference.getServiceMetadata(
+        this.providerAddress,
+      );
       this.endpoint = meta.endpoint as string;
       this.model = meta.model as string;
 
@@ -51,32 +62,39 @@ export class SealedInference {
   }
 
   async infer(params: InferenceParams): Promise<Result<SealedInferenceResult>> {
-    if (!this.broker || !this.providerAddress || !this.endpoint || !this.model) {
-      return err(new Error('Not initialized — call init() first'));
+    if (
+      !this.broker ||
+      !this.providerAddress ||
+      !this.endpoint ||
+      !this.model
+    ) {
+      return err(new Error("Not initialized — call init() first"));
     }
 
     const maxRetries = params.maxRetries ?? 3;
-    let lastError: Error = new Error('Unknown inference error');
+    let lastError: Error = new Error("Unknown inference error");
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        const headers = await this.broker.inference.getRequestHeaders(this.providerAddress);
+        const headers = await this.broker.inference.getRequestHeaders(
+          this.providerAddress,
+        );
 
         const systemContent = params.jsonMode
           ? `${params.systemPrompt}\n\nRespond with valid JSON only. No markdown, no explanation.`
           : params.systemPrompt;
 
         const response = await fetch(`${this.endpoint}/chat/completions`, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            ...(headers as Record<string, string>),
+            "Content-Type": "application/json",
+            ...toStringHeaderRecord(headers),
           },
           body: JSON.stringify({
             model: this.model,
             messages: [
-              { role: 'system', content: systemContent },
-              { role: 'user', content: params.userPrompt },
+              { role: "system", content: systemContent },
+              { role: "user", content: params.userPrompt },
             ],
           }),
         });
@@ -86,12 +104,14 @@ export class SealedInference {
             await sleep(Math.pow(2, attempt) * 1000);
             continue;
           }
-          return err(new Error('Rate limited: max retries exhausted'));
+          return err(new Error("Rate limited: max retries exhausted"));
         }
 
         if (!response.ok) {
           return err(
-            new Error(`Inference failed: HTTP ${response.status} ${response.statusText}`),
+            new Error(
+              `Inference failed: HTTP ${response.status} ${response.statusText}`,
+            ),
           );
         }
 
@@ -99,13 +119,13 @@ export class SealedInference {
           choices: Array<{ message: { content: string } }>;
         };
 
-        const content = data.choices[0]?.message?.content ?? '';
+        const content = data.choices[0]?.message?.content ?? "";
 
         // Prefer real TEE attestation header; fall back to content hash
         const attestationHash =
-          response.headers.get('x-attestation-hash') ??
-          response.headers.get('x-tee-attestation') ??
-          createHash('sha256').update(content).digest('hex');
+          response.headers.get("x-attestation-hash") ??
+          response.headers.get("x-tee-attestation") ??
+          createHash("sha256").update(content).digest("hex");
 
         return ok({
           response: content,
@@ -126,7 +146,7 @@ export class SealedInference {
 
   async getBalance(): Promise<Result<number>> {
     if (!this.broker) {
-      return err(new Error('Not initialized — call init() first'));
+      return err(new Error("Not initialized — call init() first"));
     }
     try {
       // broker.ledger exposes balance operations; depositFund is documented but
@@ -134,7 +154,7 @@ export class SealedInference {
       const ledger = this.broker.ledger as unknown as {
         getBalance?: () => Promise<number>;
       };
-      if (typeof ledger.getBalance === 'function') {
+      if (typeof ledger.getBalance === "function") {
         const balance = await ledger.getBalance();
         return ok(balance);
       }
@@ -150,13 +170,13 @@ export class SealedInference {
     outputDir: string,
   ): Promise<Result<boolean>> {
     if (!this.broker) {
-      return err(new Error('Not initialized — call init() first'));
+      return err(new Error("Not initialized — call init() first"));
     }
     try {
       await this.broker.inference.verifyService(
         providerAddress,
         outputDir,
-        (step: { message: string }) => console.log('[0G verify]', step.message),
+        (step: { message: string }) => console.log("[0G verify]", step.message),
       );
       return ok(true);
     } catch (e) {
@@ -167,4 +187,21 @@ export class SealedInference {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+function toStringHeaderRecord(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
+  const record = value as Record<string, unknown>;
+  const normalized: Record<string, string> = {};
+
+  for (const [key, raw] of Object.entries(record)) {
+    if (typeof raw === "string") {
+      normalized[key] = raw;
+    }
+  }
+
+  return normalized;
 }
