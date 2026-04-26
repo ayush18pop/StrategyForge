@@ -1,6 +1,5 @@
 import type { StrategyGoal } from './strategy.js';
 import type { EvidenceBundle } from './evidence.js';
-import type { KellyPrior } from './pipeline.js';
 
 export type TriggerReason =
   | 'user_request'

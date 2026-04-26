@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@strategyforge/core": ["../core/src/index.ts"],
+      "@strategyforge/compute": ["../compute/src/index.ts"],
+      "@strategyforge/data": ["../data/src/index.ts"],
+      "@strategyforge/storage": ["../storage/src/index.ts"],
+      "@strategyforge/keeperhub": ["../keeperhub/src/index.ts"]
+    },
+    "lib": ["ESNext", "DOM"]
+  },
+  "include": ["src/**/*"],
+  "exclude": ["src/**/*.test.ts"]
+}

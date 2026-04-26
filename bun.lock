@@ -92,6 +92,13 @@
     "packages/pipeline": {
       "name": "@strategyforge/pipeline",
       "version": "0.1.0",
+      "dependencies": {
+        "@strategyforge/compute": "workspace:*",
+        "@strategyforge/core": "workspace:*",
+        "@strategyforge/data": "workspace:*",
+        "@strategyforge/keeperhub": "workspace:*",
+        "@strategyforge/storage": "workspace:*",
+      },
     },
     "packages/server": {
       "name": "@strategyforge/server",

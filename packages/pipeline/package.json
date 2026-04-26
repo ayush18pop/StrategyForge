@@ -4,6 +4,14 @@
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {
-    "test": "bun test"
+    "test": "bun test",
+    "test:live-proxy": "bun test src/pipeline-live-proxy.test.ts"
+  },
+  "dependencies": {
+    "@strategyforge/core": "workspace:*",
+    "@strategyforge/compute": "workspace:*",
+    "@strategyforge/data": "workspace:*",
+    "@strategyforge/storage": "workspace:*",
+    "@strategyforge/keeperhub": "workspace:*"
   }
 }
