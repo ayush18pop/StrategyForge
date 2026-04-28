@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchExecution, fetchFamily, fetchHealth, searchFamilies } from '../../lib/api';
+import { fetchExecution, fetchFamily, fetchHealth, fetchUserAccount, searchFamilies } from '../../lib/api';
 
 export function useHealthQuery() {
   return useQuery({
@@ -21,6 +21,14 @@ export function useFamilyQuery(familyId: string) {
     queryKey: ['family', familyId],
     queryFn: () => fetchFamily(familyId),
     enabled: familyId.length > 0,
+  });
+}
+
+export function useUserAccountQuery(wallet: string | undefined) {
+  return useQuery({
+    queryKey: ['user-account', wallet],
+    queryFn: () => fetchUserAccount(wallet!),
+    enabled: typeof wallet === 'string' && wallet.length > 0,
   });
 }
 

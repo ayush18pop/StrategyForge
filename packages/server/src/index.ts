@@ -7,7 +7,9 @@ import { createExecutionsRouter } from './routes/executions.js';
 import { createMonitorRouter } from './routes/monitor.js';
 import { createSearchRouter } from './routes/search.js';
 import { createStrategiesRouter } from './routes/strategies.js';
+import { createUsersRouter } from './routes/users.js';
 import { startMonitoringCron } from './lib/monitoring-cron.js';
+import { StrategyTelemetryHub } from './lib/strategy-telemetry-ws.js';
 
 config();
 
@@ -22,6 +24,7 @@ export function createApp(deps: AppDeps): Express {
 
   app.use('/api/strategies/search', createSearchRouter(deps));
   app.use('/api/strategies', createStrategiesRouter(deps));
+  app.use('/api/users', createUsersRouter(deps));
   app.use('/api/executions', createExecutionsRouter(deps));
   app.use('/api/monitor', createMonitorRouter(deps));
 
@@ -38,10 +41,19 @@ async function main(): Promise<void> {
   const port = Number.parseInt(process.env.PORT ?? '3000', 10);
   const deps = await createDeps();
   const app = createApp(deps);
+  const telemetryHub = new StrategyTelemetryHub(deps.strategyTelemetryService);
 
-  app.listen(port, () => {
+  const server = app.listen(port, () => {
     console.log(`[StrategyForge Server] listening on port ${port}`);
     startMonitoringCron(deps);
+  });
+
+  server.on('upgrade', (request, socket, head) => {
+    if (telemetryHub.handleUpgrade(request, socket, head)) {
+      return;
+    }
+
+    socket.destroy();
   });
 }
 

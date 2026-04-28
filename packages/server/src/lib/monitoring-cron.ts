@@ -45,7 +45,11 @@ export function stopMonitoringCron(): void {
 // ─── Tick ────────────────────────────────────────────────────────
 
 async function runTick(deps: AppDeps): Promise<void> {
-    const familiesResult = await listFamilyIds(deps.kvStore);
+    const localFamilyIds = deps.localDb.listFamilies().map((family) => family.familyId);
+    const familiesResult = localFamilyIds.length === 0
+        ? await listFamilyIds(deps.kvStore)
+        : { ok: true as const, value: localFamilyIds };
+
     if (!familiesResult.ok) {
         console.warn('[MonitorCron] Failed to list families');
         return;

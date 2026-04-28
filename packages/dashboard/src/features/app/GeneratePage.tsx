@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
+import { useAccount } from "wagmi";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { ChevronDown } from "lucide-react";
@@ -8,12 +9,14 @@ import { createPipelineRun, createStrategy } from "../../lib/api";
 import { PipelineLoadingScreen } from "../pipeline/PipelineLoadingScreen";
 import { AmbientLight } from "../../components/glass/AmbientLight";
 import { ambientPresets } from "../../components/glass/ambient-presets";
+import { ConnectButton } from "../../components/wallet/ConnectButton";
 import "./generate.css";
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
 export function GeneratePage() {
   const navigate = useNavigate();
+  const { address, isConnected } = useAccount();
   const [asset, setAsset] = useState("USDC");
   const [amount, setAmount] = useState("50000");
   const [riskLevel, setRiskLevel] = useState<"balanced" | "conservative">(
@@ -22,17 +25,18 @@ export function GeneratePage() {
   const [horizon, setHorizon] = useState("6 months");
   const [chains, setChains] = useState("ethereum,base");
   const [targetYield, setTargetYield] = useState("800");
-  const [wallet, setWallet] = useState(
-    "0x0000000000000000000000000000000000000001",
-  );
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [liveRunId, setLiveRunId] = useState<string | null>(null);
 
   const mutation = useMutation({
-    mutationFn: (runId: string | null) =>
-      createStrategy({
+    mutationFn: (runId: string | null) => {
+      if (!address) {
+        throw new Error('Connect a wallet before forging a strategy.');
+      }
+
+      return createStrategy({
         runId: runId ?? undefined,
-        userWalletAddress: wallet,
+        userWalletAddress: address,
         goal: {
           asset,
           amount: Number(amount),
@@ -44,7 +48,8 @@ export function GeneratePage() {
             .filter(Boolean),
           targetYield: Number(targetYield),
         },
-      }),
+      });
+    },
     onSuccess: (result) => {
       toast.success("Strategy family created");
       setLiveRunId(null);
@@ -58,6 +63,7 @@ export function GeneratePage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isConnected || !address) return;
     createPipelineRun()
       .then(({ runId }) => {
         setLiveRunId(runId);
@@ -215,32 +221,60 @@ export function GeneratePage() {
                 />
               </div>
               <div className="generate-form__field">
-                <label className="generate-form__label" htmlFor="gen-wallet">
-                  Wallet address
-                </label>
-                <input
-                  id="gen-wallet"
-                  className="generate-form__input"
-                  value={wallet}
-                  onChange={(e) => setWallet(e.target.value)}
-                  placeholder="0x..."
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: "var(--fs-sm)",
-                  }}
-                />
+                <label className="generate-form__label">Wallet address</label>
+                {isConnected && address ? (
+                  <div
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '10px',
+                      border: '1px solid var(--edge-sides)',
+                      background: 'var(--bg-3)',
+                      color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 'var(--fs-sm)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                    }}
+                  >
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-ok)', flexShrink: 0 }} />
+                    {address}
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '10px',
+                      border: '1px solid var(--edge-sides)',
+                      background: 'var(--bg-3)',
+                      color: 'var(--text-tertiary)',
+                      fontSize: 'var(--fs-sm)',
+                    }}
+                  >
+                    No wallet connected
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
           {/* Submit */}
-          <button
-            type="submit"
-            className="generate-form__submit"
-            disabled={mutation.isPending}
-          >
-            {mutation.isPending ? "Forging…" : "Forge Strategy"}
-          </button>
+          {isConnected ? (
+            <button
+              type="submit"
+              className="generate-form__submit"
+              disabled={mutation.isPending}
+            >
+              {mutation.isPending ? "Forging…" : "Forge Strategy"}
+            </button>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', paddingTop: '4px' }}>
+              <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', textAlign: 'center' }}>
+                Connect your wallet to forge a strategy.
+              </p>
+              <ConnectButton />
+            </div>
+          )}
         </form>
 
         {/* Pipeline overview (dormant stations) */}

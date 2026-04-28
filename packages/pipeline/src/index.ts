@@ -25,3 +25,6 @@ export type { UpdateOrchestratorConfig } from './update-orchestrator.js';
 
 export { PROTOCOL_REGISTRY, lookupById, matchLlamaProject, supplyActionFor, withdrawActionFor } from './protocol-registry.js';
 export type { ProtocolEntry } from './protocol-registry.js';
+
+export { buildMigrationWorkflow } from './migration-planner.js';
+export type { MigrationWorkflow } from './migration-planner.js';

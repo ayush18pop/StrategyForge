@@ -2,6 +2,7 @@ import { createBrowserRouter } from 'react-router-dom';
 import { PublicShell } from '../components/primitives/PublicShell';
 import { AppShell } from '../components/primitives/AppShell';
 import { PublicLandingPage } from '../features/marketing/PublicLandingPage';
+import { AccountPage } from '../features/app/AccountPage';
 import { AgentPage } from '../features/app/AgentPage';
 import { DagPage } from '../features/app/DagPage';
 import { ExecutionPage } from '../features/app/ExecutionPage';
@@ -34,6 +35,10 @@ export const router = createBrowserRouter([
       {
         path: '/app/generate',
         element: <GeneratePage />,
+      },
+      {
+        path: '/app/account',
+        element: <AccountPage />,
       },
       {
         path: '/app/dag/:familyId',

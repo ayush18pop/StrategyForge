@@ -1,9 +1,15 @@
 import { Router } from 'express';
 import type { StrategyVersion, WorkflowSpec } from '@strategyforge/core';
+import { buildMigrationWorkflow } from '@strategyforge/pipeline';
 import type { AppDeps } from '../factory.js';
 import { syncFamilySummary } from '../lib/agent-metadata.js';
 import { schedulePersistence } from '../lib/background-persistence.js';
 import { recordReputation, updateBrain } from '../lib/contracts.js';
+import {
+  localFamilyToMetaRecord,
+  syncLocalAttestations,
+  syncLocalFamily,
+} from '../lib/local-db-sync.js';
 import {
   appendPipelineRunEvent,
   createPipelineRun,
@@ -148,6 +154,14 @@ export function createStrategiesRouter(deps: AppDeps): Router {
       createdAt: Date.now(),
     };
 
+    syncLocalFamily(deps.localDb, strategy.familyId, familyMeta);
+    syncLocalAttestations(
+      deps.localDb,
+      familyMeta.userWalletAddress,
+      strategy,
+      pipelineResult.value.evidenceBundle,
+    );
+
     res.status(201).json({
       familyId: strategy.familyId,
       goal: familyMeta.goal,
@@ -237,8 +251,19 @@ export function createStrategiesRouter(deps: AppDeps): Router {
     });
   });
 
+  router.get('/:familyId/telemetry', async (req, res) => {
+    try {
+      const telemetry = await deps.strategyTelemetryService.getBootstrap(req.params.familyId);
+      res.json(telemetry);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const status = message.toLowerCase().includes('not found') ? 404 : 502;
+      res.status(status).json({ error: message });
+    }
+  });
+
   router.get('/:familyId', async (req, res) => {
-    const familyResult = await loadFamilyMeta(deps.kvStore, req.params.familyId);
+    const familyResult = await loadFamilyMetaWithLocalFallback(deps, req.params.familyId);
     if (!familyResult.ok) {
       console.warn(`[Strategies] KV load failed for ${req.params.familyId}: ${familyResult.error.message}`);
       res.status(404).json({ error: `Family ${req.params.familyId} not found (KV unavailable)` });
@@ -259,7 +284,7 @@ export function createStrategiesRouter(deps: AppDeps): Router {
   });
 
   router.post('/:familyId/deploy', async (req, res) => {
-    const familyResult = await loadFamilyMeta(deps.kvStore, req.params.familyId);
+    const familyResult = await loadFamilyMetaWithLocalFallback(deps, req.params.familyId);
     if (!familyResult.ok) {
       res.status(500).json({ error: familyResult.error.message });
       return;
@@ -285,6 +310,8 @@ export function createStrategiesRouter(deps: AppDeps): Router {
       ...familyResult.value,
       versions: upsertStrategyVersion(familyResult.value.versions, deployment.value),
     };
+
+    syncLocalFamily(deps.localDb, req.params.familyId, nextFamily);
 
     res.json({
       familyId: req.params.familyId,
@@ -328,7 +355,7 @@ export function createStrategiesRouter(deps: AppDeps): Router {
       return;
     }
 
-    const familyResult = await loadFamilyMeta(deps.kvStore, req.params.familyId);
+    const familyResult = await loadFamilyMetaWithLocalFallback(deps, req.params.familyId);
     if (!familyResult.ok) {
       res.status(500).json({ error: familyResult.error.message });
       return;
@@ -361,6 +388,14 @@ export function createStrategiesRouter(deps: AppDeps): Router {
       ...familyResult.value,
       versions: upsertStrategyVersion(familyResult.value.versions, strategy),
     };
+
+    syncLocalFamily(deps.localDb, req.params.familyId, nextFamily);
+    syncLocalAttestations(
+      deps.localDb,
+      familyResult.value.userWalletAddress,
+      strategy,
+      pipelineResult.value.evidenceBundle,
+    );
 
     res.status(201).json({
       familyId: req.params.familyId,
@@ -445,7 +480,184 @@ export function createStrategiesRouter(deps: AppDeps): Router {
     });
   });
 
+  // GET /:familyId/subscription-info
+  // Returns payment details for subscribing to this strategy (access fee + deposit address).
+  router.get('/:familyId/subscription-info', async (req, res) => {
+    const familyResult = await loadFamilyMetaWithLocalFallback(deps, req.params.familyId);
+    if (!familyResult.ok || !familyResult.value) {
+      res.status(404).json({ error: `Family ${req.params.familyId} not found` });
+      return;
+    }
+
+    const liveVersion = familyResult.value.versions
+      .filter((v) => v.lifecycle === 'live')
+      .sort((a, b) => b.version - a.version)[0];
+
+    res.json({
+      familyId: req.params.familyId,
+      asset: familyResult.value.goal.asset,
+      principalAmount: familyResult.value.goal.amount,
+      accessFeeAmount: deps.accessFeeAmount,
+      accessFeeRecipient: deps.accessFeeRecipient,
+      accessFeeNetwork: 'base',
+      accessFeeCurrency: 'USDC',
+      turnkeyWallet: deps.turnkeyWallet,
+      keeperhubWorkflowId: liveVersion?.keeperhubWorkflowId ?? null,
+    });
+  });
+
+  // POST /:familyId/subscribe
+  // Records a user's deposit intent after they've signed the x402 access fee payment.
+  router.post('/:familyId/subscribe', async (req, res) => {
+    const { depositorAddress, expectedAmount } = (req.body ?? {}) as {
+      depositorAddress?: unknown;
+      expectedAmount?: unknown;
+    };
+
+    if (typeof depositorAddress !== 'string' || !depositorAddress.startsWith('0x')) {
+      res.status(400).json({ error: 'Expected depositorAddress (0x...)' });
+      return;
+    }
+
+    const familyResult = await loadFamilyMetaWithLocalFallback(deps, req.params.familyId);
+    if (!familyResult.ok || !familyResult.value) {
+      res.status(404).json({ error: `Family ${req.params.familyId} not found` });
+      return;
+    }
+
+    const amount = typeof expectedAmount === 'number' ? expectedAmount : familyResult.value.goal.amount;
+    const record = {
+      userAddress: depositorAddress,
+      workflowId: req.params.familyId,
+      amount,
+      depositedAt: Date.now(),
+      status: 'pending',
+    };
+
+    // Best-effort KV write — don't block response
+    void deps.kvStore.set(
+      `deposit:${depositorAddress}:${req.params.familyId}`,
+      JSON.stringify(record),
+    ).catch((err: Error) => {
+      console.warn(`[Strategies] deposit KV write failed: ${err.message}`);
+    });
+
+    console.log(`[Strategies] Subscribe: ${depositorAddress} → ${req.params.familyId}, amount: ${amount}`);
+
+    res.json({
+      familyId: req.params.familyId,
+      depositorAddress,
+      turnkeyWallet: deps.turnkeyWallet,
+      asset: familyResult.value.goal.asset,
+      expectedAmount: amount,
+      subscribedAt: Date.now(),
+    });
+  });
+
+  // POST /:familyId/migrate
+  // Builds a one-shot migration workflow that unwinds v(n) and re-deploys into v(n+1).
+  // Creates + immediately runs the workflow in KeeperHub.
+  router.post('/:familyId/migrate', async (req, res) => {
+    const familyResult = await loadFamilyMetaWithLocalFallback(deps, req.params.familyId);
+    if (!familyResult.ok) {
+      res.status(500).json({ error: familyResult.error.message });
+      return;
+    }
+    if (!familyResult.value) {
+      res.status(404).json({ error: `Family ${req.params.familyId} not found` });
+      return;
+    }
+
+    const versions = familyResult.value.versions
+      .slice()
+      .sort((a, b) => a.version - b.version);
+
+    // Need at least two versions: the live one to unwind and the target to deploy.
+    const fromVersion = versions.filter((v) => v.lifecycle === 'live').at(-1);
+    const toVersion = versions.at(-1);
+
+    if (!fromVersion || !toVersion || fromVersion.version === toVersion.version) {
+      res.status(400).json({ error: 'Migration requires a live version to unwind and a newer target version' });
+      return;
+    }
+
+    const v1Spec = parseWorkflowSpec(fromVersion.workflowSpec);
+    const v2Spec = parseWorkflowSpec(toVersion.workflowSpec);
+    if (!v1Spec || !v2Spec) {
+      res.status(400).json({ error: 'One or both versions have invalid workflowSpec' });
+      return;
+    }
+
+    const migration = buildMigrationWorkflow(
+      v1Spec as WorkflowSpec,
+      v2Spec as WorkflowSpec,
+      req.params.familyId,
+      fromVersion.version,
+      toVersion.version,
+    );
+
+    if (!migration) {
+      res.status(400).json({ error: `v${fromVersion.version} has no recognizable supply positions to unwind` });
+      return;
+    }
+
+    // Create the migration workflow in KeeperHub.
+    const createResult = await deps.keeperhub.createWorkflow(migration.spec as WorkflowSpec);
+    if (!createResult.ok) {
+      res.status(502).json({ error: `KeeperHub createWorkflow failed: ${createResult.error.message}` });
+      return;
+    }
+
+    const migrationWorkflowId = createResult.value.workflowId;
+
+    // Trigger immediately — this is a one-shot manual workflow.
+    const runResult = await deps.keeperhub.runWorkflow(migrationWorkflowId);
+    if (!runResult.ok) {
+      // Created but failed to trigger — still return the workflow ID so the user can trigger manually.
+      res.status(207).json({
+        migrationWorkflowId,
+        executionId: null,
+        warning: `Workflow created but auto-trigger failed: ${runResult.error.message}. Trigger manually via KeeperHub.`,
+        withdraws: migration.withdrawNodeCount,
+        deposits: migration.depositNodeCount,
+        from: { version: fromVersion.version, workflowId: fromVersion.keeperhubWorkflowId },
+        to: { version: toVersion.version, workflowId: toVersion.keeperhubWorkflowId },
+      });
+      return;
+    }
+
+    console.log(`[Strategies] Migration ${req.params.familyId} v${fromVersion.version}→v${toVersion.version}: workflow ${migrationWorkflowId}, execution ${runResult.value.executionId}`);
+
+    res.json({
+      migrationWorkflowId,
+      executionId: runResult.value.executionId,
+      withdraws: migration.withdrawNodeCount,
+      deposits: migration.depositNodeCount,
+      from: { version: fromVersion.version, workflowId: fromVersion.keeperhubWorkflowId },
+      to: { version: toVersion.version, workflowId: toVersion.keeperhubWorkflowId },
+    });
+  });
+
   return router;
+}
+
+async function loadFamilyMetaWithLocalFallback(
+  deps: AppDeps,
+  familyId: string,
+): Promise<{ ok: true; value: FamilyMetaRecord | null } | { ok: false; error: Error }> {
+  const localRecord = deps.localDb.getFamily(familyId);
+  if (localRecord) {
+    return {
+      ok: true,
+      value: localFamilyToMetaRecord(localRecord),
+    };
+  }
+
+  const familyResult = await loadFamilyMeta(deps.kvStore, familyId);
+  if (familyResult.ok && familyResult.value) {
+    syncLocalFamily(deps.localDb, familyId, familyResult.value);
+  }
+  return familyResult;
 }
 
 function findLatestDraftVersion(versions: StrategyVersion[]): StrategyVersion | undefined {

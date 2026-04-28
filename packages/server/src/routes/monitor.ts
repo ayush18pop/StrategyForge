@@ -4,6 +4,7 @@ import type { AppDeps } from '../factory.js';
 import { syncFamilySummary } from '../lib/agent-metadata.js';
 import { schedulePersistence } from '../lib/background-persistence.js';
 import { recordReputation, updateBrain } from '../lib/contracts.js';
+import { localFamilyToMetaRecord, syncLocalAttestations, syncLocalFamily } from '../lib/local-db-sync.js';
 import { loadFamilyMeta, saveFamilyMeta, upsertStrategyVersion } from '../lib/kv-meta.js';
 import { parseUpdateTrigger, parseWorkflowSpec } from '../lib/request-parsers.js';
 
@@ -20,7 +21,7 @@ export function createMonitorRouter(deps: AppDeps): Router {
       return;
     }
 
-    const familyResult = await loadFamilyMeta(deps.kvStore, familyId);
+    const familyResult = await loadFamilyMetaWithLocalFallback(deps, familyId);
     if (!familyResult.ok) {
       res.status(500).json({ error: familyResult.error.message });
       return;
@@ -50,6 +51,14 @@ export function createMonitorRouter(deps: AppDeps): Router {
       ...familyResult.value,
       versions: upsertStrategyVersion(familyResult.value.versions, nextVersion),
     };
+
+    syncLocalFamily(deps.localDb, familyId, nextFamily);
+    syncLocalAttestations(
+      deps.localDb,
+      familyResult.value.userWalletAddress,
+      nextVersion,
+      pipelineResult.value.evidenceBundle,
+    );
 
     // Respond immediately
     res.json({
@@ -147,6 +156,25 @@ export function createMonitorRouter(deps: AppDeps): Router {
   });
 
   return router;
+}
+
+async function loadFamilyMetaWithLocalFallback(
+  deps: AppDeps,
+  familyId: string,
+): Promise<{ ok: true; value: ReturnType<typeof localFamilyToMetaRecord> | null } | { ok: false; error: Error }> {
+  const localRecord = deps.localDb.getFamily(familyId);
+  if (localRecord) {
+    return {
+      ok: true,
+      value: localFamilyToMetaRecord(localRecord),
+    };
+  }
+
+  const familyResult = await loadFamilyMeta(deps.kvStore, familyId);
+  if (familyResult.ok && familyResult.value) {
+    syncLocalFamily(deps.localDb, familyId, familyResult.value);
+  }
+  return familyResult;
 }
 
 async function deployStrategyVersion(

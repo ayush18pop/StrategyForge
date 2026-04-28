@@ -16,11 +16,15 @@ import {
 import { EvidenceStore, KVStore } from "@strategyforge/storage";
 import type { KeeperHubClientApi } from "@strategyforge/keeperhub";
 import { createLocalStore } from "./lib/local-store.js";
+import type { LocalDB } from "./lib/local-store.js";
+import { StrategyTelemetryService } from "./lib/strategy-telemetry.js";
 
 export interface AppDeps {
   keeperhub: KeeperHubClientApi;
   evidenceStore: EvidenceStore;
   kvStore: KVStore;
+  localDb: LocalDB;
+  strategyTelemetryService: StrategyTelemetryService;
   createOrchestrator: CreateOrchestrator;
   updateOrchestrator: UpdateOrchestrator;
   signer: Wallet;
@@ -31,6 +35,9 @@ export interface AppDeps {
   keeperhubPricePerRun: string;
   keeperhubPaymentNetwork: string;
   keeperhubPublishOnDeploy: boolean;
+  turnkeyWallet: string;
+  accessFeeRecipient: string;
+  accessFeeAmount: string;
 }
 
 export async function createDeps(): Promise<AppDeps> {
@@ -47,6 +54,9 @@ export async function createDeps(): Promise<AppDeps> {
   const keeperhubPaymentNetwork =
     process.env.KEEPERHUB_PAYMENT_NETWORK ?? "base";
   const keeperhubPublishOnDeploy = process.env.KEEPERHUB_PUBLISH_ON_DEPLOY === "1";
+  const turnkeyWallet = process.env.TURNKEY_WALLET_ADDRESS ?? '';
+  const accessFeeRecipient = process.env.ACCESS_FEE_RECIPIENT ?? '';
+  const accessFeeAmount = process.env.ACCESS_FEE_AMOUNT ?? '1';
 
   const keeperhub = new HttpKeeperHubClient({
     apiKey: keeperhubApiKey,
@@ -105,10 +115,18 @@ export async function createDeps(): Promise<AppDeps> {
     },
   );
 
+  const strategyTelemetryService = new StrategyTelemetryService({
+    kvStore,
+    localDb: localStore,
+    llama,
+  });
+
   return {
     keeperhub,
     evidenceStore,
     kvStore,
+    localDb: localStore,
+    strategyTelemetryService,
     createOrchestrator: new CreateOrchestrator(pipeline),
     updateOrchestrator,
     signer: new Wallet(privateKey, new JsonRpcProvider(evmRpc)),
@@ -119,6 +137,9 @@ export async function createDeps(): Promise<AppDeps> {
     keeperhubPricePerRun,
     keeperhubPaymentNetwork,
     keeperhubPublishOnDeploy,
+    turnkeyWallet,
+    accessFeeRecipient,
+    accessFeeAmount,
   };
 }
 

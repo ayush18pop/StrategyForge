@@ -5,6 +5,7 @@ import type {
   WorkflowNode,
   WorkflowSpec,
 } from '@strategyforge/core';
+import { normalizeWalletAddress } from './wallet-address.js';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -62,9 +63,13 @@ export function parseCreateBody(input: unknown): {
   }
 
   const goal = parseGoal(record.goal ?? input);
-  const userWalletAddress = record.userWalletAddress;
+  const rawWalletAddress = record.userWalletAddress;
+  const userWalletAddress =
+    typeof rawWalletAddress === 'string'
+      ? normalizeWalletAddress(rawWalletAddress)
+      : null;
 
-  if (!goal || typeof userWalletAddress !== 'string' || userWalletAddress.length === 0) {
+  if (!goal || !userWalletAddress) {
     return null;
   }
 

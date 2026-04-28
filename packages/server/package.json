@@ -17,10 +17,12 @@
     "@strategyforge/keeperhub": "workspace:*",
     "@strategyforge/pipeline": "workspace:*",
     "@strategyforge/storage": "workspace:*",
+    "@types/ws": "^8.18.1",
+    "axios": "^1.15.2",
+    "dotenv": "^17.4.2",
     "ethers": "^6",
     "express": "^5.2.1",
-    "axios": "^1.15.2",
-    "dotenv": "^17.4.2"
+    "ws": "^8.20.0"
   },
   "devDependencies": {
     "@types/bun": "^1.3.13",
