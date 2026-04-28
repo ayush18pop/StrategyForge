@@ -1,35 +1,37 @@
 /**
  * StrategyForge Monitoring Cron
  *
- * Runs periodically inside the server process (NOT a KeeperHub workflow).
- * Checks all tracked families for execution failures or drift,
- * and triggers the UpdateOrchestrator when thresholds are exceeded.
+ * A single ticker fires every TICK_MS (default 5 min).
+ * Each tick checks every tracked family, but only acts on those
+ * whose per-family monitorIntervalMs has elapsed since lastMonitoredAt.
  *
- * Per architecture.md: 24h interval (configurable), node-cron based.
+ * Interval per family is derived from riskLevel at creation time:
+ *   conservative → 24 h
+ *   balanced     →  6 h
  */
 
 import type { AppDeps } from '../factory.js';
-import { listFamilyIds, loadFamilyLatest } from './kv-meta.js';
+import { listFamilyIds, loadFamilyLatest, touchLastMonitored } from './kv-meta.js';
 import { AnalyticsOutcomeFetcher } from '@strategyforge/pipeline';
 import type { UpdateTrigger } from '@strategyforge/core';
 
 // ─── Configuration ──────────────────────────────────────────────
 
-const DEFAULT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
-const FAILURE_THRESHOLD = 2;   // 2+ failures in recent runs
-const SUCCESS_RATE_FLOOR = 0.90; // Below 90% triggers underperformance
+const DEFAULT_TICK_MS = 5 * 60 * 1000;   // how often we scan all families
+const FAILURE_THRESHOLD = 2;
+const SUCCESS_RATE_FLOOR = 0.90;
 
 let cronTimer: ReturnType<typeof setInterval> | null = null;
 
 // ─── Public API ─────────────────────────────────────────────────
 
 export function startMonitoringCron(deps: AppDeps): void {
-    const intervalMs = Number(process.env.MONITOR_CRON_INTERVAL_MS) || DEFAULT_INTERVAL_MS;
-    console.log(`[MonitorCron] Starting — interval: ${intervalMs / 1000}s`);
+    const tickMs = Number(process.env.MONITOR_TICK_MS) || DEFAULT_TICK_MS;
+    console.log(`[MonitorCron] Starting — tick every ${tickMs / 1000}s, per-family intervals from riskLevel`);
 
-    // Run once shortly after startup (30s delay), then every interval
-    setTimeout(() => void runMonitoringCycle(deps), 30_000);
-    cronTimer = setInterval(() => void runMonitoringCycle(deps), intervalMs);
+    // First tick 30 s after startup so the server is fully ready.
+    setTimeout(() => void runTick(deps), 30_000);
+    cronTimer = setInterval(() => void runTick(deps), tickMs);
 }
 
 export function stopMonitoringCron(): void {
@@ -40,11 +42,9 @@ export function stopMonitoringCron(): void {
     }
 }
 
-// ─── Core Cycle ─────────────────────────────────────────────────
+// ─── Tick ────────────────────────────────────────────────────────
 
-async function runMonitoringCycle(deps: AppDeps): Promise<void> {
-    console.log('[MonitorCron] Starting monitoring cycle...');
-
+async function runTick(deps: AppDeps): Promise<void> {
     const familiesResult = await listFamilyIds(deps.kvStore);
     if (!familiesResult.ok) {
         console.warn('[MonitorCron] Failed to list families');
@@ -52,38 +52,44 @@ async function runMonitoringCycle(deps: AppDeps): Promise<void> {
     }
 
     const familyIds = familiesResult.value;
-    if (familyIds.length === 0) {
-        console.log('[MonitorCron] No families tracked — skipping');
-        return;
-    }
+    if (familyIds.length === 0) return;
 
-    console.log(`[MonitorCron] Checking ${familyIds.length} families...`);
+    const now = Date.now();
+    let due = 0;
 
     for (const familyId of familyIds) {
         try {
-            await checkFamily(deps, familyId);
+            const checked = await maybeCheckFamily(deps, familyId, now);
+            if (checked) due++;
         } catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            console.warn(`[MonitorCron] Error checking ${familyId}: ${msg}`);
+            console.warn(`[MonitorCron] Error checking ${familyId}:`, (e as Error).message);
         }
     }
 
-    console.log('[MonitorCron] Cycle complete');
+    if (due > 0) {
+        console.log(`[MonitorCron] Tick complete — checked ${due}/${familyIds.length} families`);
+    }
 }
 
-async function checkFamily(deps: AppDeps, familyId: string): Promise<void> {
+// Returns true if the family was due and we ran a check.
+async function maybeCheckFamily(
+    deps: AppDeps,
+    familyId: string,
+    now: number,
+): Promise<boolean> {
     const familyResult = await loadFamilyLatest(deps.kvStore, familyId);
-    if (!familyResult.ok || !familyResult.value) {
-        return; // No data yet
-    }
+    if (!familyResult.ok || !familyResult.value) return false;
 
     const family = familyResult.value;
-    const workflowId = family.keeperhubWorkflowId;
-    if (!workflowId) {
-        return; // Not deployed yet
-    }
 
-    // Fetch analytics from KeeperHub
+    // Skip if not yet due.
+    const elapsed = now - family.lastMonitoredAt;
+    if (elapsed < family.monitorIntervalMs) return false;
+
+    const workflowId = family.keeperhubWorkflowId;
+    if (!workflowId) return false;
+
+    // Fetch analytics from KeeperHub.
     const fetcher = new AnalyticsOutcomeFetcher({
         apiUrl: process.env.KEEPERHUB_API_URL ?? '',
         apiKey: process.env.KEEPERHUB_API_KEY ?? '',
@@ -93,39 +99,41 @@ async function checkFamily(deps: AppDeps, familyId: string): Promise<void> {
     const analyticsResult = await fetcher.fetch();
     if (!analyticsResult.ok) {
         console.log(`[MonitorCron] ${familyId}: analytics unavailable (${analyticsResult.error.message})`);
-        return;
+        // Still advance the clock so we don't hammer a failing endpoint.
+        await touchLastMonitored(deps.kvStore, familyId);
+        return true;
     }
 
     const analytics = analyticsResult.value;
-
-    // Evaluate triggers
-    let trigger: UpdateTrigger | null = null;
-
-    if (analytics.successRate < SUCCESS_RATE_FLOOR) {
-        trigger = {
-            reason: 'underperformance',
-            actualVsPredicted: analytics.successRate,
-        };
-    } else if (analytics.failedRuns.length >= FAILURE_THRESHOLD) {
-        trigger = {
-            reason: 'underperformance',
-            actualVsPredicted: analytics.successRate,
-        };
-    }
+    const trigger = buildTrigger(analytics);
 
     if (!trigger) {
-        console.log(`[MonitorCron] ${familyId}: healthy (${(analytics.successRate * 100).toFixed(1)}% success)`);
-        return;
+        const pct = (analytics.successRate * 100).toFixed(1);
+        const nextCheckIn = Math.round((family.monitorIntervalMs - elapsed) / 60_000);
+        console.log(`[MonitorCron] ${familyId}: healthy (${pct}%) — next check in ~${nextCheckIn}min`);
+        await touchLastMonitored(deps.kvStore, familyId);
+        return true;
     }
 
     console.log(`[MonitorCron] ${familyId}: triggering update — ${trigger.reason}`);
 
-    // Trigger the update pipeline
     const updateResult = await deps.updateOrchestrator.update({ familyId, trigger });
     if (!updateResult.ok) {
         console.warn(`[MonitorCron] ${familyId}: update failed — ${updateResult.error.message}`);
-        return;
+    } else {
+        console.log(`[MonitorCron] ${familyId}: v${updateResult.value.strategy.version} created`);
     }
 
-    console.log(`[MonitorCron] ${familyId}: v${updateResult.value.strategy.version} created`);
+    await touchLastMonitored(deps.kvStore, familyId);
+    return true;
+}
+
+function buildTrigger(analytics: { successRate: number; failedRuns: unknown[] }): UpdateTrigger | null {
+    if (analytics.successRate < SUCCESS_RATE_FLOOR) {
+        return { reason: 'underperformance', actualVsPredicted: analytics.successRate };
+    }
+    if (analytics.failedRuns.length >= FAILURE_THRESHOLD) {
+        return { reason: 'underperformance', actualVsPredicted: analytics.successRate };
+    }
+    return null;
 }

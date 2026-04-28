@@ -1,11 +1,13 @@
 import { err, ok } from '@strategyforge/core';
-import type { Result, StrategyGoal, StrategyVersion } from '@strategyforge/core';
+import type { Result, RiskLevel, StrategyGoal, StrategyVersion } from '@strategyforge/core';
 import type { KVStore } from '@strategyforge/storage';
 
 export interface FamilyLatestRecord {
   priorCids: string[];
   goal: StrategyGoal;
   keeperhubWorkflowId?: string;
+  monitorIntervalMs: number; // derived from riskLevel at creation
+  lastMonitoredAt: number;   // updated by cron after each check
 }
 
 export interface FamilyMetaRecord {
@@ -39,12 +41,22 @@ export async function saveFamilyMeta(
     return err(new Error(`Family ${familyId} has no versions to persist`));
   }
 
+  // Preserve lastMonitoredAt so a re-save after a version bump doesn't
+  // reset the cron clock and cause an immediate re-check.
+  const existingResult = await loadFamilyLatest(kvStore, familyId);
+  const lastMonitoredAt =
+    existingResult.ok && existingResult.value
+      ? existingResult.value.lastMonitoredAt
+      : 0;
+
   const latestRecord: FamilyLatestRecord = {
     priorCids: dedupeCids([...latestVersion.priorCids, latestVersion.cid]),
     goal: meta.goal,
     ...(latestVersion.keeperhubWorkflowId
       ? { keeperhubWorkflowId: latestVersion.keeperhubWorkflowId }
       : {}),
+    monitorIntervalMs: monitorIntervalFor(meta.goal.riskLevel),
+    lastMonitoredAt,
   };
 
   const latestWrite = await writeJson(kvStore, latestKey(familyId), latestRecord);
@@ -55,6 +67,19 @@ export async function saveFamilyMeta(
   return writeJson(kvStore, metaKey(familyId), {
     ...meta,
     versions: sortVersions(meta.versions),
+  });
+}
+
+// Called by the cron after successfully checking a family to advance its clock.
+export async function touchLastMonitored(
+  kvStore: KVStore,
+  familyId: string,
+): Promise<void> {
+  const existing = await loadFamilyLatest(kvStore, familyId);
+  if (!existing.ok || !existing.value) return;
+  await writeJson(kvStore, latestKey(familyId), {
+    ...existing.value,
+    lastMonitoredAt: Date.now(),
   });
 }
 
@@ -118,6 +143,13 @@ function sortVersions(versions: StrategyVersion[]): StrategyVersion[] {
 
 function dedupeCids(cids: string[]): string[] {
   return Array.from(new Set(cids));
+}
+
+function monitorIntervalFor(riskLevel: RiskLevel): number {
+  switch (riskLevel) {
+    case 'conservative': return 24 * 60 * 60 * 1000; // 24 h — stable positions change slowly
+    case 'balanced':     return  6 * 60 * 60 * 1000; //  6 h — more market exposure
+  }
 }
 
 // ─── Family Index (for monitoring cron) ─────────────────────────
