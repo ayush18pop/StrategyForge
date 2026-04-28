@@ -200,7 +200,10 @@ interface StrategistInferenceAttempt {
 // ─── Strategist ──────────────────────────────────────────────────
 
 export class Strategist {
-  constructor(private readonly inference: InferenceClient) {}
+  constructor(
+    private readonly inference: InferenceClient,
+    private readonly geminiInference?: InferenceClient,
+  ) {}
 
   async run(params: {
     researcherOutput: ResearcherOutput;
@@ -263,6 +266,27 @@ export class Strategist {
         attempts.push(retryAttempt.value);
         if (retryAttempt.value.candidates.length > 0) {
           candidates = retryAttempt.value.candidates;
+        }
+      }
+    }
+
+    // Final fallback: try Gemini if available and all other attempts failed
+    if (candidates.length === 0 && this.geminiInference) {
+      console.warn("⚠ All recovery attempts failed, trying Gemini as secondary model...");
+      const geminiAttempt = await runStrategistAttempt(this.geminiInference, "retry", {
+        systemPrompt: STRATEGIST_RETRY_SYSTEM_PROMPT,
+        userPrompt: buildRetryUserPrompt(
+          researcherOutput,
+          goal,
+          actionSchemas,
+          priorVersions,
+        ),
+        jsonMode: true,
+      });
+      if (geminiAttempt.ok) {
+        attempts.push(geminiAttempt.value);
+        if (geminiAttempt.value.candidates.length > 0) {
+          candidates = geminiAttempt.value.candidates;
         }
       }
     }
@@ -364,16 +388,19 @@ function parseCandidates(raw: unknown[]): CandidateWorkflow[] {
     const c = item as Record<string, unknown>;
     const id = typeof c.id === "string" ? c.id : `C${out.length + 1}`;
 
-    const trigger = parseTrigger(c.trigger);
+    const trigger = parseTrigger(c.trigger, c.config);
     const nodes = parseNodes(c.nodes);
-    const edges = parseEdges(c.edges);
+    const edges = dedupeEdges(parseEdges(c.edges));
 
     if (nodes.length === 0) continue;
+    if (!hasExecutableConfigs(nodes)) continue;
     // Reject the dump-of-actions pattern: many nodes, zero edges, no Condition/Code
     if (edges.length === 0 && nodes.length > 2) continue;
     // Reject if trigger has no outgoing edge
     if (edges.length > 0 && !edges.some((e) => e.source === "trigger"))
       continue;
+    // Reject if Condition nodes are missing explicit true/false branching
+    if (!hasValidConditionBranching(nodes, edges)) continue;
 
     out.push({
       id,
@@ -387,17 +414,113 @@ function parseCandidates(raw: unknown[]): CandidateWorkflow[] {
   return out;
 }
 
+function hasExecutableConfigs(nodes: WorkflowNode[]): boolean {
+  for (const node of nodes) {
+    const config = node.config ?? {};
+    const type = node.type.toLowerCase();
+    const meaningfulKeys = Object.keys(config).filter(
+      (key) => key !== "actionType",
+    );
+
+    if (node.type === "Collect") continue;
+
+    if (node.type === "Condition") {
+      const condition = config["condition"];
+      const conditions = config["conditions"];
+      const hasConditionString =
+        typeof condition === "string" && condition.trim().length > 0;
+      const hasConditionsArray =
+        Array.isArray(conditions) && conditions.length > 0;
+
+      if (!hasConditionString && !hasConditionsArray) return false;
+      continue;
+    }
+
+    // Reject effectively-empty action configs that render blank property panes.
+    if (meaningfulKeys.length === 0) return false;
+
+    // Money-moving actions should always include at least one amount field.
+    if (
+      type.includes("/supply") ||
+      type.includes("/repay") ||
+      type.includes("/withdraw") ||
+      type.includes("/borrow") ||
+      type.includes("/deposit") ||
+      type.includes("/swap")
+    ) {
+      const hasAmount =
+        typeof config["amount"] === "string" ||
+        typeof config["amount"] === "number" ||
+        typeof config["assets"] === "string" ||
+        typeof config["assets"] === "number" ||
+        typeof config["amountIn"] === "string" ||
+        typeof config["amountIn"] === "number";
+      if (!hasAmount) return false;
+    }
+  }
+
+  return true;
+}
+
+function hasValidConditionBranching(
+  nodes: WorkflowNode[],
+  edges: WorkflowEdge[],
+): boolean {
+  const conditionIds = new Set(
+    nodes.filter((node) => node.type === "Condition").map((node) => node.id),
+  );
+
+  for (const conditionId of conditionIds) {
+    const outgoing = edges.filter((edge) => edge.source === conditionId);
+    if (outgoing.length < 2) return false;
+
+    const handles = new Set(outgoing.map((edge) => edge.sourceHandle));
+    if (!handles.has("true") || !handles.has("false")) return false;
+    if (
+      [...handles].some((handle) => handle !== "true" && handle !== "false")
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function parseTopLevelResponse(response: string): unknown {
   const parsed = parseJsonLikeValue(response);
   return parsed === undefined ? response : parsed;
 }
 
-function parseTrigger(raw: unknown): CandidateWorkflow["trigger"] | undefined {
+function parseTrigger(
+  raw: unknown,
+  legacyConfigRaw?: unknown,
+): CandidateWorkflow["trigger"] | undefined {
   if (raw === null || raw === undefined) return undefined;
   if (typeof raw === "string") {
+    const trimmed = raw.trim().toLowerCase();
+    if (
+      trimmed === "schedule" ||
+      trimmed === "manual" ||
+      trimmed === "webhook" ||
+      trimmed === "event"
+    ) {
+      const config = parseNodeConfig(legacyConfigRaw);
+      return {
+        type: trimmed as CandidateWorkflow["trigger"] extends infer T
+          ? T extends { type: infer U }
+            ? U
+            : never
+          : never,
+        config:
+          trimmed === "schedule" && !config["cron"]
+            ? { cron: "0 */6 * * *" }
+            : config,
+      } as CandidateWorkflow["trigger"];
+    }
+
     const parsed = parseJsonLikeValue(raw);
     if (parsed === undefined) return undefined;
-    return parseTrigger(parsed);
+    return parseTrigger(parsed, legacyConfigRaw);
   }
   if (typeof raw !== "object") return undefined;
   const t = raw as Record<string, unknown>;
@@ -408,10 +531,7 @@ function parseTrigger(raw: unknown): CandidateWorkflow["trigger"] | undefined {
         ? U
         : never
       : never,
-    config:
-      typeof t.config === "object" && t.config !== null
-        ? (t.config as Record<string, unknown>)
-        : {},
+    config: parseNodeConfig(t.config),
   } as CandidateWorkflow["trigger"];
 }
 
@@ -426,14 +546,162 @@ function parseNodes(raw: unknown): WorkflowNode[] {
     nodes.push({
       id: n.id,
       type: n.type,
-      config:
-        typeof n.config === "object" && n.config !== null
-          ? (n.config as Record<string, unknown>)
-          : {},
+      config: parseNodeConfig(n.config),
       label: typeof n.label === "string" ? n.label : undefined,
     });
   }
   return nodes;
+}
+
+const VALID_WALLET_PLACEHOLDER = "0x1111111111111111111111111111111111111111";
+const VALID_VAULT_PLACEHOLDER = "0x2222222222222222222222222222222222222222";
+const VALID_RECIPIENT_PLACEHOLDER =
+  "0x3333333333333333333333333333333333333333";
+
+function parseNodeConfig(raw: unknown): Record<string, unknown> {
+  if (raw && typeof raw === "object") {
+    return sanitizeConfigObject(raw as Record<string, unknown>);
+  }
+
+  if (typeof raw !== "string") return {};
+
+  const parsed = parseJsonLikeValue(raw);
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    return sanitizeConfigObject(parsed as Record<string, unknown>);
+  }
+
+  return sanitizeConfigObject(parseLooseConfigString(raw));
+}
+
+function parseLooseConfigString(raw: string): Record<string, unknown> {
+  const text = raw.trim();
+  if (!text) return {};
+
+  const unwrapped =
+    text.startsWith("{") && text.endsWith("}")
+      ? text.slice(1, -1).trim()
+      : text;
+
+  const entries = splitTopLevelComma(unwrapped);
+  const out: Record<string, unknown> = {};
+
+  for (const entry of entries) {
+    const idx = entry.indexOf(":");
+    if (idx <= 0) continue;
+
+    const key = entry.slice(0, idx).trim().replace(/^"|"$/g, "");
+    const rawValue = entry.slice(idx + 1).trim();
+    if (!key) continue;
+    out[key] = coerceLooseValue(rawValue);
+  }
+
+  return out;
+}
+
+function splitTopLevelComma(raw: string): string[] {
+  const out: string[] = [];
+  let current = "";
+  let braces = 0;
+  let brackets = 0;
+  let parens = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (const ch of raw) {
+    if (escaped) {
+      current += ch;
+      escaped = false;
+      continue;
+    }
+
+    if (ch === "\\") {
+      current += ch;
+      escaped = true;
+      continue;
+    }
+
+    if (ch === '"') {
+      current += ch;
+      inString = !inString;
+      continue;
+    }
+
+    if (!inString) {
+      if (ch === "{") braces += 1;
+      if (ch === "}") braces = Math.max(0, braces - 1);
+      if (ch === "[") brackets += 1;
+      if (ch === "]") brackets = Math.max(0, brackets - 1);
+      if (ch === "(") parens += 1;
+      if (ch === ")") parens = Math.max(0, parens - 1);
+
+      if (ch === "," && braces === 0 && brackets === 0 && parens === 0) {
+        if (current.trim()) out.push(current.trim());
+        current = "";
+        continue;
+      }
+    }
+
+    current += ch;
+  }
+
+  if (current.trim()) out.push(current.trim());
+  return out;
+}
+
+function coerceLooseValue(raw: string): unknown {
+  const value = raw.trim();
+  if (!value) return "";
+
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
+
+  if (/^-?\d+$/.test(value)) {
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) ? parsed : value;
+  }
+
+  if (/^-?\d+\.\d+$/.test(value)) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : value;
+  }
+
+  if (value === "true") return true;
+  if (value === "false") return false;
+
+  return value;
+}
+
+function sanitizeConfigObject(
+  input: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input)) {
+    out[key] = sanitizeConfigValue(value);
+  }
+  return out;
+}
+
+function sanitizeConfigValue(value: unknown): unknown {
+  if (typeof value === "string") {
+    return value
+      .replaceAll("0xYOUR_WALLET_ADDRESS", VALID_WALLET_PLACEHOLDER)
+      .replaceAll("0xRECIPIENT_ADDRESS", VALID_RECIPIENT_PLACEHOLDER)
+      .replaceAll("0xVAULT_ADDRESS", VALID_VAULT_PLACEHOLDER);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeConfigValue(item));
+  }
+
+  if (value && typeof value === "object") {
+    return sanitizeConfigObject(value as Record<string, unknown>);
+  }
+
+  return value;
 }
 
 function parseEdges(raw: unknown): WorkflowEdge[] {
@@ -448,10 +716,28 @@ function parseEdges(raw: unknown): WorkflowEdge[] {
       source: e.source,
       target: e.target,
       sourceHandle:
-        typeof e.sourceHandle === "string" ? e.sourceHandle : undefined,
+        typeof e.sourceHandle === "string"
+          ? e.sourceHandle.trim().toLowerCase()
+          : typeof e.sourceHandle === "boolean"
+            ? String(e.sourceHandle)
+            : undefined,
     });
   }
   return edges;
+}
+
+function dedupeEdges(edges: WorkflowEdge[]): WorkflowEdge[] {
+  const seen = new Set<string>();
+  const out: WorkflowEdge[] = [];
+
+  for (const edge of edges) {
+    const key = `${edge.source}|${edge.target}|${edge.sourceHandle ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(edge);
+  }
+
+  return out;
 }
 
 function parseJsonIfString(raw: unknown): unknown {
@@ -598,6 +884,15 @@ function hardcodedYieldFallbackStrategy(
       ? "0xA238Dd80C259a72e81d7e4664a9801593F98d1c5"
       : "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2";
 
+  const networkId = primaryChain === "base" ? "8453" : "1";
+  const totalAmountBaseUnits = Math.max(1, Math.floor(goal.amount * 1_000_000));
+  const reserveAmount = Math.max(1, Math.floor(totalAmountBaseUnits * 0.15));
+  const deployAmount = Math.max(1, totalAmountBaseUnits - reserveAmount);
+  const emergencyRepayAmount = Math.max(
+    1,
+    Math.floor(totalAmountBaseUnits * 0.1),
+  );
+
   return {
     id: "A",
     trigger: { type: "schedule", config: { cron: "0 */6 * * *" } },
@@ -608,106 +903,127 @@ function hardcodedYieldFallbackStrategy(
         label: "Check USDC Balance",
         config: {
           tokenAddress: usdcAddress,
-          walletAddress: "0xYOUR_WALLET_ADDRESS",
-          network: primaryChain,
+          walletAddress: VALID_WALLET_PLACEHOLDER,
+          network: networkId,
+        },
+      },
+      {
+        id: "has-idle-balance",
+        type: "Condition",
+        label: "Has Idle Balance To Deploy?",
+        config: {
+          condition: `Number({{@check-balance:Check USDC Balance.balance}}) >= ${deployAmount}`,
+        },
+      },
+      {
+        id: "check-health",
+        type: "aave-v3/get-user-account-data",
+        label: "Check Aave Health",
+        config: {
+          network: networkId,
+          user: VALID_WALLET_PLACEHOLDER,
+        },
+      },
+      {
+        id: "is-health-risky",
+        type: "Condition",
+        label: "Health Factor Below 1.3?",
+        config: {
+          condition:
+            "Number({{@check-health:Check Aave Health.healthFactor}}) < 1.3",
+        },
+      },
+      {
+        id: "emergency-repay",
+        type: "aave-v3/repay",
+        label: "Emergency Repay 10%",
+        config: {
+          network: networkId,
+          asset: usdcAddress,
+          amount: String(emergencyRepayAmount),
+          onBehalfOf: VALID_WALLET_PLACEHOLDER,
+          interestRateMode: "2",
+        },
+      },
+      {
+        id: "alert-risk",
+        type: "discord/send-message",
+        label: "Alert Risk Condition",
+        config: {
+          discordMessage:
+            "⚠ Emergency repay triggered because health factor dropped below 1.3.",
         },
       },
       {
         id: "approve-aave",
         type: "web3/approve-token",
-        label: "Approve Aave USDC",
+        label: "Approve Aave Supply",
         config: {
           tokenAddress: usdcAddress,
           spender: aavePool,
-          amount: "{{@check-balance:Check USDC Balance.balance}}",
-          network: primaryChain,
+          amount: String(deployAmount),
+          network: networkId,
         },
       },
       {
         id: "supply-aave",
         type: "aave-v3/supply",
-        label: "Supply 40% to Aave",
+        label: "Supply Deployable USDC",
         config: {
-          network: primaryChain === "base" ? "8453" : "1",
+          network: networkId,
           asset: usdcAddress,
-          amount:
-            "{{ Math.floor(Number({{@check-balance:Check USDC Balance.balance}}) * 0.4) }}",
-          onBehalfOf: "0xYOUR_WALLET_ADDRESS",
+          amount: String(deployAmount),
+          onBehalfOf: VALID_WALLET_PLACEHOLDER,
           referralCode: "0",
         },
       },
       {
-        id: "approve-morpho",
-        type: "web3/approve-token",
-        label: "Approve Morpho Vault",
-        config: {
-          tokenAddress: usdcAddress,
-          spender: "0xVAULT_ADDRESS",
-          amount:
-            "{{ Math.floor(Number({{@check-balance:Check USDC Balance.balance}}) * 0.3) }}",
-          network: primaryChain,
-        },
-      },
-      {
-        id: "deposit-morpho",
-        type: "morpho/vault-deposit",
-        label: "Deposit 30% to Morpho Vault",
-        config: {
-          network: primaryChain,
-          vault: "0xVAULT_ADDRESS",
-          assets:
-            "{{ Math.floor(Number({{@check-balance:Check USDC Balance.balance}}) * 0.3) }}",
-          receiver: "0xYOUR_WALLET_ADDRESS",
-        },
-      },
-      {
-        id: "approve-yearn",
-        type: "web3/approve-token",
-        label: "Approve Yearn Vault",
-        config: {
-          tokenAddress: usdcAddress,
-          spender: "0xVAULT_ADDRESS",
-          amount:
-            "{{ Math.floor(Number({{@check-balance:Check USDC Balance.balance}}) * 0.3) }}",
-          network: primaryChain,
-        },
-      },
-      {
-        id: "deposit-yearn",
-        type: "yearn/vault-deposit",
-        label: "Deposit 30% to Yearn Vault",
-        config: {
-          network: primaryChain,
-          vault: "0xVAULT_ADDRESS",
-          assets:
-            "{{ Math.floor(Number({{@check-balance:Check USDC Balance.balance}}) * 0.3) }}",
-          receiver: "0xYOUR_WALLET_ADDRESS",
-        },
-      },
-      {
-        id: "notify-telegram",
+        id: "notify-deployed",
         type: "telegram/send-message",
-        label: "Send Allocation Summary",
+        label: "Notify Allocation Executed",
         config: {
-          telegramMessage:
-            `✅ Yield allocation executed for ${goal.asset} (${goal.amount}). ` +
-            `Chain: ${primaryChain}. Split: 40% Aave, 30% Morpho, 30% Yearn. ` +
-            `Context: ${researcherOutput.contextType}.`,
+          telegramMessage: `✅ Strategy deployed on ${primaryChain}. Supplied ${deployAmount} base units of ${goal.asset} and held ${reserveAmount} base units as liquid reserve.`,
+        },
+      },
+      {
+        id: "notify-skip",
+        type: "telegram/send-message",
+        label: "Notify No-Op",
+        config: {
+          telegramMessage: `ℹ️ Skipped deployment because balance was below deploy threshold (${deployAmount} base units). Context: ${researcherOutput.contextType}.`,
         },
       },
     ],
     edges: [
       { source: "trigger", target: "check-balance" },
-      { source: "check-balance", target: "approve-aave" },
+      { source: "check-balance", target: "has-idle-balance" },
+      {
+        source: "has-idle-balance",
+        target: "check-health",
+        sourceHandle: "true",
+      },
+      {
+        source: "has-idle-balance",
+        target: "notify-skip",
+        sourceHandle: "false",
+      },
+      { source: "check-health", target: "is-health-risky" },
+      {
+        source: "is-health-risky",
+        target: "emergency-repay",
+        sourceHandle: "true",
+      },
+      { source: "is-health-risky", target: "alert-risk", sourceHandle: "true" },
+      {
+        source: "is-health-risky",
+        target: "approve-aave",
+        sourceHandle: "false",
+      },
       { source: "approve-aave", target: "supply-aave" },
-      { source: "supply-aave", target: "approve-morpho" },
-      { source: "approve-morpho", target: "deposit-morpho" },
-      { source: "deposit-morpho", target: "approve-yearn" },
-      { source: "approve-yearn", target: "deposit-yearn" },
-      { source: "deposit-yearn", target: "notify-telegram" },
+      { source: "supply-aave", target: "notify-deployed" },
     ],
     hypothesis:
-      "Automatically deploy idle USDC across proven yield venues on a 6h cadence using deterministic split logic.",
+      "Monitor wallet health and deploy USDC only when balance and risk gates pass, with emergency repay + alerts under stress.",
     confidence: 0.78,
   };
 }
@@ -755,6 +1071,11 @@ function buildUserPrompt(
     `ACTION SCHEMA SUMMARY:\n${JSON.stringify(relevantSchemas, null, 2)}`,
     priorSection,
     `Design 2-3 candidate workflows using the shape from the example.`,
+    `Every Condition node must include config.condition (or config.conditions) and exactly two outgoing branches with sourceHandle "true" and "false".`,
+    `Do not generate placeholder decision nodes (for example: "Select Pool") unless the predicate is explicit and executable from upstream outputs.`,
+    `Every action node must include executable config values (network + required addresses + amount fields where applicable).`,
+    `Use syntactically valid placeholder addresses only (0x + 40 hex chars). Do not emit tokens like 0xYOUR_WALLET_ADDRESS.`,
+    `For amount/assets/amountIn fields, emit integer strings in token base units (USDC uses 6 decimals).`,
     `Return only the JSON object.`,
     `Do not encode trigger, nodes, or edges as strings.`,
   ].join("\n\n");

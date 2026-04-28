@@ -4,6 +4,7 @@ import type {
   TriggerReason,
   EvidenceBundle,
   Result,
+  FailurePattern,
 } from '@strategyforge/core';
 import type { PipelineOrchestrator, PipelineOutput } from './pipeline-orchestrator.js';
 import type { EvidenceStore, KVStore } from '@strategyforge/storage';
@@ -58,6 +59,9 @@ export class UpdateOrchestrator {
     }
     priorVersions.sort((a, b) => a.version - b.version);
 
+    // 2b. Extract failure patterns: Critic learns what failed before
+    const failurePatterns = extractFailurePatterns(priorVersions);
+
     // 3. Fetch actual outcomes from KeeperHub analytics
     const workflowId = familyData.keeperhubWorkflowId ?? '';
     const analyticsFetcher = new AnalyticsOutcomeFetcher({
@@ -75,17 +79,14 @@ export class UpdateOrchestrator {
     const triggerReason = mapTrigger(trigger);
     const emergencyUpdate = trigger.reason === 'protocol_incident';
 
-    // 5. The goal is stored in the first prior bundle
-    const goal = priorVersions[0]
-      ? (priorVersions[0] as unknown as { goal?: unknown }).goal
-        ?? (familyData.goal as unknown)
-      : familyData.goal as unknown;
+    // 5. The goal is stored in the KV family state
+    const goal = familyData.goal as unknown;
 
     if (!goal) {
       return err(new Error(`Could not reconstruct StrategyGoal for family ${familyId}`));
     }
 
-    // 6. Run pipeline with full prior context
+    // 6. Run pipeline with full prior context (including what failed before)
     return this.pipeline.run({
       goal: goal as Parameters<typeof this.pipeline.run>[0]['goal'],
       familyId,
@@ -94,6 +95,7 @@ export class UpdateOrchestrator {
       actualOutcomes,
       triggerReason,
       emergencyUpdate,
+      failurePatterns,  // ← Critic learns from these!
     });
   }
 }
@@ -105,4 +107,53 @@ function mapTrigger(trigger: UpdateTrigger): TriggerReason {
     case 'protocol_incident': return 'protocol_incident';
     case 'scheduled_review': return 'scheduled_review';
   }
+}
+
+// Extract what failed in prior versions so Critic can learn to avoid those patterns
+function extractFailurePatterns(priorVersions: EvidenceBundle[]): FailurePattern[] {
+  const patterns: FailurePattern[] = [];
+
+  priorVersions.forEach((bundle) => {
+    // Check if this version underperformed
+    const outcomes = bundle.outcomes as {
+      finalStatus?: string;
+      targetYield?: number;
+      actualYield?: number;
+      notes?: string;
+    } | undefined;
+
+    if (!outcomes || outcomes.finalStatus !== 'underperformed') {
+      return; // Skip successful versions
+    }
+
+    const targetYield = outcomes.targetYield ?? 0;
+    const actualYield = outcomes.actualYield ?? 0;
+
+    // Extract which protocols were used (from strategist candidates node types)
+    const strategistEvidence = bundle.pipeline?.strategist as {
+      output?: { candidates?: Array<{ nodes?: Array<{ type?: string }> }> };
+    } | undefined;
+    const candidates = strategistEvidence?.output?.candidates ?? [];
+    const protocolSet = new Set<string>();
+    for (const c of candidates) {
+      for (const n of c.nodes ?? []) {
+        if (n.type) {
+          const proto = n.type.split('/')[0];
+          if (proto) protocolSet.add(proto);
+        }
+      }
+    }
+    const allocation = [...protocolSet];
+
+    patterns.push({
+      version: bundle.version,
+      reason: outcomes.notes ?? 'Unknown failure reason',
+      affectedProtocols: allocation,
+      targetYield,
+      actualYield,
+      gap: targetYield - actualYield,
+    });
+  });
+
+  return patterns;
 }

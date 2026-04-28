@@ -2,10 +2,26 @@ import { err, ok } from "./core.js";
 import type { Result } from "./core.js";
 import * as zeroGSdk from "@0gfoundation/0g-ts-sdk";
 
+export interface StorageNodeClient {
+  getStatus(): Promise<{ networkIdentity: { flowAddress: string } } | null>;
+}
+
 export interface StorageSdk {
   Indexer: new (url: string) => {
-    selectNodes(count: number): Promise<[any[], unknown]>;
-    upload(data: unknown, evmRpc: string, signer: unknown): Promise<unknown>;
+    selectNodes(count: number): Promise<[StorageNodeClient[], unknown]>;
+    upload(
+      data: unknown,
+      evmRpc: string,
+      signer: unknown,
+      uploadOpts?: {
+        finalityRequired?: boolean;
+        expectedReplica?: number;
+        skipIfFinalized?: boolean;
+        onProgress?: (message: string) => void;
+      },
+      retryOpts?: unknown,
+      opts?: unknown,
+    ): Promise<unknown>;
     download(
       cid: string,
       outputPath: string,
@@ -16,11 +32,12 @@ export interface StorageSdk {
     merkleTree(): Promise<unknown>;
     close?: () => Promise<void> | void;
   };
+  StorageNode: new (url: string) => StorageNodeClient;
   Batcher: new (
-    replicaCount: number,
-    nodes: string[],
+    version: number,
+    nodes: StorageNodeClient[],
+    flow: unknown,
     evmRpc: string,
-    signer: unknown,
   ) => {
     streamDataBuilder: {
       set(streamId: string, key: Buffer, value: Buffer): void;
@@ -30,7 +47,7 @@ export interface StorageSdk {
   KvClient: new (kvNodeRpc: string) => {
     getValue(streamId: string, key: Buffer): Promise<unknown>;
   };
-  getFlowContract: Function;
+  getFlowContract: (address: string, signer: unknown) => unknown;
 }
 
 function hasRequiredStorageSdkExports(value: unknown): value is StorageSdk {
@@ -42,6 +59,7 @@ function hasRequiredStorageSdkExports(value: unknown): value is StorageSdk {
   return (
     typeof sdk.Indexer === "function" &&
     typeof sdk.MemData === "function" &&
+    typeof sdk.StorageNode === "function" &&
     typeof sdk.Batcher === "function" &&
     typeof sdk.KvClient === "function" &&
     typeof sdk.getFlowContract === "function"

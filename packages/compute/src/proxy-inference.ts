@@ -6,6 +6,12 @@ import type { InferenceParams } from "./sealed-inference.js";
 
 export const DEFAULT_PROXY_MODEL = "qwen/qwen-2.5-7b-instruct";
 
+const RATE_LIMIT_RETRY_DELAY_MS = 7_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 export interface ProxyInferenceConfig {
   apiKey: string;
   baseURL?: string;
@@ -43,17 +49,30 @@ export class ProxyInference {
       ...(this.model !== DEFAULT_PROXY_MODEL ? [DEFAULT_PROXY_MODEL] : []),
     ];
 
+    const maxRetries = params.maxRetries ?? 3;
     let lastError: Error | null = null;
 
     for (const candidateModel of attemptedModels) {
-      try {
-        const result = await this.inferWithModel(candidateModel, params);
-        if (candidateModel !== this.model) {
-          this.model = candidateModel;
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          const result = await this.inferWithModel(candidateModel, params);
+          if (candidateModel !== this.model) {
+            this.model = candidateModel;
+          }
+          return ok(result);
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error(String(error));
+          const is429 =
+            lastError.message.includes("429") ||
+            (error instanceof Object &&
+              "status" in error &&
+              (error as { status: number }).status === 429);
+          if (is429 && attempt < maxRetries) {
+            await sleep(RATE_LIMIT_RETRY_DELAY_MS);
+            continue;
+          }
+          break;
         }
-        return ok(result);
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
       }
     }
 

@@ -8,6 +8,7 @@ import type {
   EvidenceBundle,
   StepEvidence,
   Result,
+  FailurePattern,
 } from '@strategyforge/core';
 import type { InferenceClient } from './researcher.js';
 
@@ -83,8 +84,9 @@ export class Critic {
     priorFailures: EvidenceBundle[];
     snapshot: MarketSnapshot;
     goal: StrategyGoal;
+    failurePatterns?: FailurePattern[];  // Critic learns from prior failures
   }): Promise<Result<CriticOutput>> {
-    const { candidates, priorFailures, snapshot, goal } = params;
+    const { candidates, priorFailures, snapshot, goal, failurePatterns } = params;
 
     // 1. Deterministic structural bounds (the LLM gets these as truth)
     const boundsResults: BoundsResult[] = candidates.map(c => computeBounds(c));
@@ -96,10 +98,10 @@ export class Critic {
     });
     const llmCandidates = surviving.length > 0 ? surviving : candidates;
 
-    // 3. Sealed inference — LLM auditor
+    // 3. Sealed inference — LLM auditor (with learned failure patterns)
     const inferResult = await this.inference.infer({
       systemPrompt: CRITIC_SYSTEM_PROMPT,
-      userPrompt: buildUserPrompt(llmCandidates, boundsResults, snapshot, priorFailures, goal),
+      userPrompt: buildUserPrompt(llmCandidates, boundsResults, snapshot, priorFailures, goal, failurePatterns),
       jsonMode: true,
     });
     if (!inferResult.ok) return err(inferResult.error);
@@ -299,6 +301,7 @@ function buildUserPrompt(
   snapshot: MarketSnapshot,
   priorFailures: EvidenceBundle[],
   goal: StrategyGoal,
+  failurePatterns?: FailurePattern[],
 ): string {
   const priorSection = priorFailures.length > 0
     ? `PRIOR FAILURES — flag candidates that repeat these patterns:\n${priorFailures.map(p => {
@@ -307,12 +310,20 @@ function buildUserPrompt(
       }).join('\n')}`
     : 'No prior failures.';
 
+  // Critic learns: what specifically failed and why
+  const failurePatternSection = failurePatterns && failurePatterns.length > 0
+    ? `FAILURE PATTERNS TO AVOID — these candidates caused underperformance:\n${failurePatterns.map(fp =>
+        `v${fp.version}: Used ${fp.affectedProtocols.join(", ")} → Target ${fp.targetYield} BPS, Actual ${fp.actualYield} BPS (missed by ${fp.gap} BPS). Reason: ${fp.reason}`
+      ).join("\n")}\n\nRecommendation: Flag any candidate that uses the same protocol combinations or repeat the failure reason.`
+    : 'No prior failure patterns extracted (first deployment or all prior versions succeeded).';
+
   return [
     `USER GOAL:\n${JSON.stringify(goal, null, 2)}`,
     `MARKET STATE (for fit evaluation):\n${JSON.stringify(snapshot.protocols.slice(0, 8), null, 2)}`,
     `CANDIDATES:\n${JSON.stringify(candidates, null, 2)}`,
     `PRE-COMPUTED BOUNDS RESULTS (structural check — use as truth):\n${JSON.stringify(boundsResults, null, 2)}`,
     priorSection,
-    'Audit. Pick the best. Return JSON only.',
+    failurePatternSection,
+    'Audit. Consider prior failures. Pick the best. Return JSON only.',
   ].join('\n\n');
 }

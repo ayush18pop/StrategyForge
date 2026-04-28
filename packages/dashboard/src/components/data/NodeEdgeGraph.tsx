@@ -1,32 +1,66 @@
-import React from 'react';
-
 export interface NodeEdgeGraphProps {
-    nodes: { id: string; type: string }[];
-    edges: { source: string; target: string; condition?: string }[];
+  nodes: { id: string; type: string; label?: string }[];
+  edges: { source: string; target: string; sourceHandle?: string; condition?: string }[];
 }
 
 export function NodeEdgeGraph({ nodes, edges }: NodeEdgeGraphProps) {
-    return (
-        <div className="flex flex-col gap-4 p-4 border border-white/10 rounded-lg bg-black/40">
-            <h3 className="text-sm font-semibold text-white/80">Workflow Topology</h3>
-            <div className="flex flex-wrap gap-6 items-center">
-                {nodes.map(node => (
-                    <div key={node.id} className="px-4 py-2 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-md font-mono text-xs">
-                        {node.type}: {node.id}
-                    </div>
-                ))}
+  return (
+    <div style={{ display: 'grid', gap: '18px' }}>
+      <div style={{ display: 'grid', gap: '12px', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+        {nodes.map((node, index) => (
+          <div
+            key={node.id}
+            style={{
+              padding: '16px',
+              borderRadius: '20px',
+              border: '1px solid rgba(255,255,255,0.08)',
+              background: 'rgba(255,255,255,0.05)',
+              display: 'grid',
+              gap: '10px',
+            }}
+          >
+            <div className="step-index">{index + 1}</div>
+            <strong style={{ color: 'var(--text-primary)' }}>{node.label ?? node.type}</strong>
+            <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-sm)' }}>
+              {node.id}
+            </span>
+            <span style={{ color: 'var(--accent-200)', fontSize: 'var(--fs-sm)' }}>{node.type}</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gap: '10px' }}>
+        <span className="eyebrow">Execution edges</span>
+        {edges.length === 0 ? (
+          <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)' }}>No explicit edges were published with this workflow.</p>
+        ) : (
+          edges.map((edge) => (
+            <div
+              key={`${edge.source}-${edge.target}-${edge.sourceHandle ?? 'default'}`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                flexWrap: 'wrap',
+                padding: '12px 14px',
+                borderRadius: '16px',
+                border: '1px solid rgba(255,255,255,0.08)',
+                background: 'rgba(255,255,255,0.03)',
+                color: 'var(--text-secondary)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 'var(--fs-sm)',
+              }}
+            >
+              <span>{edge.source}</span>
+              <span style={{ color: 'var(--text-tertiary)' }}>→</span>
+              <span>{edge.target}</span>
+              {edge.sourceHandle ? (
+                <span style={{ color: 'var(--accent-200)' }}>via {edge.sourceHandle}</span>
+              ) : null}
             </div>
-            <div className="flex flex-col gap-2 mt-2">
-                <h4 className="text-xs text-white/50">Execution Edges</h4>
-                {edges.map((edge, i) => (
-                    <div key={i} className="text-xs flex gap-2 items-center text-white/60 font-mono">
-                        <span>{edge.source}</span>
-                        <span className="text-white/40">→</span>
-                        <span>{edge.target}</span>
-                        {edge.condition && <span className="bg-white/10 px-1 rounded">if {edge.condition}</span>}
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
+          ))
+        )}
+      </div>
+    </div>
+  );
 }

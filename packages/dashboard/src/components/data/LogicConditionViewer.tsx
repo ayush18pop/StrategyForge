@@ -1,32 +1,45 @@
-import React from 'react';
-
 export interface LogicConditionViewerProps {
-    conditionType: string;
-    threshold: string | number;
-    currentValue: string | number;
-    passed: boolean;
+  conditionType: string;
+  threshold: string | number;
+  currentValue: string | number;
+  passed: boolean;
 }
 
 export function LogicConditionViewer({ conditionType, threshold, currentValue, passed }: LogicConditionViewerProps) {
-    return (
-        <div className="flex items-center gap-4 p-3 bg-black/40 border border-white/10 rounded-md">
-            <div className="text-xs font-semibold uppercase text-white/50 tracking-wider w-24">
-                {conditionType}
-            </div>
-            <div className="flex-1 flex gap-4 items-center text-sm font-mono text-white/80">
-                <div>
-                    <span className="text-white/40 text-xs mr-2">VAL</span>
-                    {currentValue}
-                </div>
-                <div className="text-white/30">&raquo;</div>
-                <div>
-                    <span className="text-white/40 text-xs mr-2">THR</span>
-                    {threshold}
-                </div>
-            </div>
-            <div className={`px-2 py-1 rounded text-xs font-semibold uppercase ${passed ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                {passed ? 'Passed' : 'Failed'}
-            </div>
-        </div>
-    );
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '120px 1fr auto',
+        gap: '14px',
+        alignItems: 'center',
+        padding: '14px',
+        borderRadius: '18px',
+        background: 'rgba(255,255,255,0.05)',
+        border: '1px solid rgba(255,255,255,0.08)',
+      }}
+    >
+      <div className="eyebrow">{conditionType}</div>
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+        <span><span style={{ color: 'var(--text-tertiary)' }}>VAL</span> {currentValue}</span>
+        <span style={{ color: 'var(--text-tertiary)' }}>→</span>
+        <span><span style={{ color: 'var(--text-tertiary)' }}>THR</span> {threshold}</span>
+      </div>
+      <span
+        style={{
+          minHeight: '30px',
+          padding: '6px 10px',
+          borderRadius: '999px',
+          background: passed ? 'rgba(127,183,154,0.16)' : 'rgba(224,122,106,0.16)',
+          color: passed ? 'var(--ok-500)' : 'var(--warn-500)',
+          fontSize: 'var(--fs-xs)',
+          fontWeight: 700,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+        }}
+      >
+        {passed ? 'Passed' : 'Failed'}
+      </span>
+    </div>
+  );
 }

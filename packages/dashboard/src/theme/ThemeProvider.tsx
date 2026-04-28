@@ -1,16 +1,9 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import type { ThemeContextValue } from './useTheme';
+import { ThemeContext } from './theme-context';
 
-type ThemeMode = 'dark' | 'light' | 'auto';
-type ResolvedTheme = 'dark' | 'light';
-
-interface ThemeContextValue {
-  mode: ThemeMode;
-  resolved: ResolvedTheme;
-  setMode: (mode: ThemeMode) => void;
-  toggle: () => void;
-}
-
-const ThemeContext = createContext<ThemeContextValue | null>(null);
+type ThemeMode = ThemeContextValue['mode'];
+type ResolvedTheme = ThemeContextValue['resolved'];
 
 const STORAGE_KEY = 'sf-theme';
 
@@ -65,10 +58,4 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       {children}
     </ThemeContext.Provider>
   );
-}
-
-export function useTheme(): ThemeContextValue {
-  const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error('useTheme must be used within ThemeProvider');
-  return ctx;
 }

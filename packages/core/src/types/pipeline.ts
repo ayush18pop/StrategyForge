@@ -22,6 +22,11 @@ export interface ProtocolData {
 
 export type MarketRegime = 'stable' | 'rising' | 'declining' | 'volatile';
 
+export interface LogicNodeConfig {
+  nodeType: string;
+  config: Record<string, unknown>;
+}
+
 export interface PipelineContext {
   goal: StrategyGoal;
   priorVersions: EvidenceBundle[];

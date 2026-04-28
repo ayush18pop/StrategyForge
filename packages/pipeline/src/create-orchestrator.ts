@@ -10,7 +10,12 @@ import type { PipelineOrchestrator, PipelineOutput } from './pipeline-orchestrat
 export class CreateOrchestrator {
   constructor(private readonly pipeline: PipelineOrchestrator) {}
 
-  async create(goal: StrategyGoal): Promise<Result<PipelineOutput>> {
+  async create(
+    goal: StrategyGoal,
+    options?: {
+      onStep?: (step: string, status: 'start' | 'done' | 'error', message: string) => void;
+    },
+  ): Promise<Result<PipelineOutput>> {
     const familyId = randomUUID();
 
     return this.pipeline.run({
@@ -21,6 +26,7 @@ export class CreateOrchestrator {
       actualOutcomes: null,
       triggerReason: 'user_request',
       emergencyUpdate: false,
+      ...(options?.onStep ? ({ onStep: options.onStep } as { onStep: NonNullable<typeof options.onStep> }) : {}),
     });
   }
 }

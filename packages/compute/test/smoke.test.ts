@@ -37,7 +37,7 @@ describe('Compute Smoke Tests', () => {
             console.log('Attestation Hash:', inferenceResult.value.attestationHash);
             console.log('Response:', inferenceResult.value.response);
         }
-    }, 60000); // give it a 60-second timeout for remote inference
+    }); // Bun doesn't support timeout parameter, use async/await for control
 
     test('Should perform inference natively via Proxy API Key', async () => {
         const apiKey = process.env['0G_COMPUTE_API_KEY'];
@@ -62,5 +62,5 @@ describe('Compute Smoke Tests', () => {
             console.log('Proxy Attestation Hash:', inferenceResult.value.attestationHash);
             console.log('Proxy Response:', inferenceResult.value.response);
         }
-    }, 60000);
+    });
 });

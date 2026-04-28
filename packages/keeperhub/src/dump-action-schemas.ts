@@ -30,7 +30,7 @@ if (!apiUrl || !apiKey) {
 }
 
 async function main(): Promise<void> {
-  const client = new HttpKeeperHubClient({ apiUrl, apiKey });
+  const client = new HttpKeeperHubClient({ apiUrl: apiUrl!, apiKey: apiKey! });
   const result = await client.listActionSchemas();
 
   if (!result.ok) {

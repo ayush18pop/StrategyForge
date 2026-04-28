@@ -1,4 +1,4 @@
-import type { LogicNodeConfig, MarketRegime } from './pipeline.js';
+import type { MarketRegime } from './pipeline.js';
 
 export interface EvidenceBundle {
   strategyFamily: string;
@@ -20,24 +20,22 @@ export interface PipelineEvidence {
   riskValidator: { passed: boolean; warnings: string[] };
 }
 
-// Researcher evidence includes LogicNodeConfigs so they're in the audit trail
 export interface ResearcherEvidence extends StepEvidence {
   output: {
     regime: MarketRegime;
     survivingProtocols: string[];
-    logicNodes: LogicNodeConfig[];
-    signals: { protocol: string; signal: string; severity: 'low' | 'medium' | 'high' }[];
+    contextType: string;
+    suitableActions: string[];
+    signals: { subject?: string; protocol?: string; signal: string; severity: 'low' | 'medium' | 'high' }[];
   };
 }
 
-// Critic evidence includes updated structure that feeds the next version
 export interface CriticEvidence extends StepEvidence {
   output: {
     verdicts: Record<string, unknown>[];
     selectedCandidateId: string;
     selectionRationale: string;
     mandatoryConstraints: string[];
-    updatedLogicNodes: LogicNodeConfig[];   // loaded by Researcher in v(n+1)
   };
 }
 

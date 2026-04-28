@@ -27,8 +27,9 @@ export class RiskValidator {
     // Node bounds checks
     const { nodes } = candidate;
     for (const node of nodes) {
-      if (!node.bounds || Object.keys(node.bounds).length === 0) {
-        warnings.push(`Node ${node.nodeId} has empty protective bounds`);
+      // Node type validation happens during workflow compilation
+      if (!node.type) {
+        warnings.push(`Node ${node.id} is missing a type`);
       }
     }
 

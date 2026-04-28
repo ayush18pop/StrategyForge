@@ -20,23 +20,19 @@ const SMOKE_TEST_STRATEGY: WorkflowSpec = {
     name: "StrategyForge — Monorepo Smoke Test",
     description: "Checking Aave USDC APY. Read-only.",
     trigger: {
-        type: "cron",
-        schedule: "0 * * * *",
+        type: "schedule",
+        config: { cron: "0 * * * *" },
     },
-    steps: [
+    nodes: [
         {
             id: "fetch-aave",
-            type: "action",
-            action: {
-                protocol: "http",
-                method: "GET",
-                params: {
-                    url: "https://yields.llama.fi/pools",
-                },
-                chain: "ethereum"
+            type: "http/get",
+            config: {
+                url: "https://yields.llama.fi/pools",
             }
         }
-    ]
+    ],
+    edges: []
 };
 
 async function runTest() {

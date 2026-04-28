@@ -20,6 +20,7 @@ export interface StrategyGoal {
   riskLevel: RiskLevel;
   horizon: string;
   chains: Chain[];
+  targetYield: number;  // Target APY in basis points (800 = 8%)
 }
 
 export interface AllocationEntry {

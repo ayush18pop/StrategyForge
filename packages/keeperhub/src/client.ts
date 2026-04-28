@@ -1,5 +1,6 @@
 import { err, ok } from "@strategyforge/core";
 import type {
+  ActionSchema,
   ExecutionLog,
   Result,
   WorkflowSpec,
@@ -9,19 +10,6 @@ import type {
 export interface KeeperHubClientConfig {
   apiKey: string;
   apiUrl: string;
-}
-
-export interface ActionSchema {
-  // Normalized field — the API returns `actionType` but we map it to `type` on read.
-  type: string;
-  label: string;
-  description?: string;
-  category?: string;
-  integration?: string;
-  requiresCredentials?: boolean;
-  requiredFields?: Record<string, string>;
-  optionalFields?: Record<string, string>;
-  outputFields?: Record<string, string>;
 }
 
 export interface KeeperHubClient {
@@ -153,7 +141,12 @@ export class HttpKeeperHubClient implements KeeperHubClient {
       };
       position: { x: number; y: number };
     }>;
-    edges: Array<{ id: string; source: string; target: string }>;
+    edges: Array<{
+      id: string;
+      source: string;
+      target: string;
+      sourceHandle?: string;
+    }>;
   } {
     // KeeperHub trigger nodes use a capitalized triggerType and scheduleCron (not "cron").
     // Our WorkflowSpec.trigger.config uses { cron } so we map it here.
@@ -189,9 +182,11 @@ export class HttpKeeperHubClient implements KeeperHubClient {
         type: "action",
         data: {
           type: "action",
-          label: node.id
-            .replace(/[-_]/g, " ")
-            .replace(/\b\w/g, (c) => c.toUpperCase()),
+          label:
+            node.label ??
+            node.id
+              .replace(/[-_]/g, " ")
+              .replace(/\b\w/g, (c) => c.toUpperCase()),
           config,
           status: "idle" as const,
         },
@@ -199,11 +194,19 @@ export class HttpKeeperHubClient implements KeeperHubClient {
       };
     });
 
-    const edges = spec.edges.map((edge) => ({
-      id: `${edge.source}->${edge.target}`,
-      source: edge.source,
-      target: edge.target,
-    }));
+    const edges = spec.edges.map((edge) => {
+      const sourceHandle =
+        typeof edge.sourceHandle === "string" && edge.sourceHandle.length > 0
+          ? edge.sourceHandle
+          : undefined;
+
+      return {
+        id: `${edge.source}:${sourceHandle ?? "default"}->${edge.target}`,
+        source: edge.source,
+        target: edge.target,
+        ...(sourceHandle ? { sourceHandle } : {}),
+      };
+    });
 
     return {
       name: spec.name,
@@ -285,9 +288,22 @@ export class HttpKeeperHubClient implements KeeperHubClient {
   }
 
   async getExecutionLogs(executionId: string): Promise<Result<ExecutionLog[]>> {
-    return this.request<ExecutionLog[]>(
-      "GET",
+    const endpointCandidates = [
+      `/workflows/executions/${executionId}/logs`,
       `/executions/${executionId}/logs`,
+    ];
+
+    let lastError: Error | null = null;
+    for (const path of endpointCandidates) {
+      const response = await this.request<ExecutionLog[]>("GET", path);
+      if (response.ok) {
+        return response;
+      }
+      lastError = response.error;
+    }
+
+    return err(
+      lastError ?? new Error("KeeperHub execution log request failed"),
     );
   }
 
@@ -296,12 +312,47 @@ export class HttpKeeperHubClient implements KeeperHubClient {
     pricePerRun: string;
     paymentNetwork: string;
   }): Promise<Result<void>> {
-    const response = await this.request<unknown>(
-      "POST",
-      "/workflows/publish",
-      params,
-    );
-    return response.ok ? ok(undefined) : response;
+    const endpointCandidates = [
+      {
+        method: "PUT" as const,
+        path: `/workflows/${params.workflowId}/go-live`,
+        body: {
+          pricePerRun: params.pricePerRun,
+          paymentNetwork: params.paymentNetwork,
+        },
+      },
+      {
+        method: "POST" as const,
+        path: `/workflows/${params.workflowId}/publish`,
+        body: {
+          pricePerRun: params.pricePerRun,
+          paymentNetwork: params.paymentNetwork,
+        },
+      },
+      {
+        method: "POST" as const,
+        path: "/workflows/publish",
+        body: params,
+      },
+    ];
+
+    let lastError: Error | null = null;
+    for (const candidate of endpointCandidates) {
+      const response = await this.request<unknown>(
+        candidate.method,
+        candidate.path,
+        candidate.body,
+      );
+      if (response.ok) {
+        return ok(undefined);
+      }
+      lastError = response.error;
+      if (!isMethodNotAllowed(response.error)) {
+        break;
+      }
+    }
+
+    return err(lastError ?? new Error("KeeperHub publish request failed"));
   }
 
   async listProtocols(): Promise<
@@ -314,7 +365,7 @@ export class HttpKeeperHubClient implements KeeperHubClient {
   }
 
   private async request<T>(
-    method: "GET" | "POST",
+    method: "GET" | "POST" | "PUT",
     path: string,
     body?: unknown,
   ): Promise<Result<T>> {
@@ -349,4 +400,8 @@ export class HttpKeeperHubClient implements KeeperHubClient {
       return err(e instanceof Error ? e : new Error(String(e)));
     }
   }
+}
+
+function isMethodNotAllowed(error: Error): boolean {
+  return /405\b|Method Not Allowed/i.test(error.message);
 }

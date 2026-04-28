@@ -1,3 +1,5 @@
+import type { Result } from './result.js';
+
 // KeeperHub's native workflow format — used directly with create_workflow MCP tool.
 // Node `type` values MUST be discovered via list_action_schemas on day 1.
 // Do NOT hardcode type strings without verifying them first.
@@ -44,12 +46,16 @@ export interface ExecutionLog {
 
 export interface ActionSchema {
   type: string;
+  label?: string;
+  description?: string;
   category?: string;
+  integration?: string;
+  requiresCredentials?: boolean;
   requiredFields?: Record<string, string>;
   optionalFields?: Record<string, string>;
   outputFields?: Record<string, string>;
 }
 
 export interface ActionSchemaSource {
-  listActionSchemas(): Promise<any>; // Actually Promise<Result<ActionSchema[]>> but we don't want circular dependency or we can just use import
+  listActionSchemas(): Promise<Result<ActionSchema[]>>;
 }

@@ -1,0 +1,20 @@
+/* Pipeline Visualizer Additions */
+.pipeline-root .attest-block {
+  box-shadow: inset 0 2px 8px rgba(227, 169, 74, 0.15);
+}
+.glass-thick {
+  background: rgba(10, 12, 15, 0.36);
+  backdrop-filter: blur(10px) saturate(1.2);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+.glass-thin {
+  background: rgba(10, 12, 15, 0.1);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.02);
+  border-radius: 16px;
+}
+.text-sage-400 { color: #7fb79a; }
+.text-accent-400 { color: #5B6CFF; }
+.bg-accent-400 { background-color: #5B6CFF; }
+.bg-accent-500 { background-color: #4b5be5; }

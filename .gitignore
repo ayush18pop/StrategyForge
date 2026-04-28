@@ -4,3 +4,6 @@ dist/
 *.log
 docs/
 docs/**
+packages/contracts/lib/**
+packages/contracts/out
+packages/contracts/cache

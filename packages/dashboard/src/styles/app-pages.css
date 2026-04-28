@@ -1,0 +1,420 @@
+/* ═══════════════════════════════════════════════════════════
+   App Pages — Shared classes for all /app/* screens
+   Glass cards, stat cards, page intros, hash blocks, grids.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ─── Page wrapper ───────────────────────────────────────── */
+.app-page {
+    display: grid;
+    gap: 18px;
+    animation: app-page-enter 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes app-page-enter {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ─── Page intro (eyebrow + title + subtitle + actions) ─── */
+.app-page-intro {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-6) 0 var(--space-4);
+}
+
+.app-page-intro__eyebrow {
+    color: var(--text-tertiary);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.app-page-intro__title {
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-size: clamp(28px, 4vw, 40px);
+    line-height: var(--lh-tight);
+    letter-spacing: -0.035em;
+}
+
+.app-page-intro__subtitle {
+    color: var(--text-secondary);
+    font-size: var(--fs-md);
+    max-width: 56ch;
+    line-height: var(--lh-body);
+}
+
+.app-page-intro__actions {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    padding-top: var(--space-2);
+}
+
+/* ─── Stat grid ──────────────────────────────────────────── */
+.app-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+}
+
+/* ─── Stat card ──────────────────────────────────────────── */
+.app-stat-card {
+    position: relative;
+    padding: var(--space-5);
+    border-radius: var(--radius-lg);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.02) 18%, transparent 56%),
+        var(--landing-surface-soft);
+    border: 1px solid var(--landing-border);
+    border-top-color: var(--landing-border-strong);
+    overflow: hidden;
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (hover: hover) {
+    .app-stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 18px 48px -24px rgba(0, 0, 0, 0.4);
+    }
+}
+
+.app-stat-card__value {
+    font-family: var(--font-mono);
+    font-size: clamp(24px, 2.8vw, 32px);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    letter-spacing: -0.03em;
+}
+
+.app-stat-card__value--accent {
+    color: var(--accent-200);
+}
+
+.app-stat-card__value--attest {
+    color: var(--attest-500);
+}
+
+.app-stat-card__value--ok {
+    color: var(--ok-500);
+}
+
+.app-stat-card__value--default {
+    color: var(--text-primary);
+}
+
+.app-stat-card__label {
+    margin-top: var(--space-2);
+    color: var(--text-tertiary);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.app-stat-card__meta {
+    margin-top: var(--space-2);
+    color: var(--text-tertiary);
+    font-size: var(--fs-xs);
+    line-height: var(--lh-body);
+}
+
+/* ─── Section card ───────────────────────────────────────── */
+.app-section-card {
+    position: relative;
+    display: grid;
+    gap: var(--space-4);
+    padding: var(--space-6);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    isolation: isolate;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 16%, transparent 48%),
+        var(--landing-surface-soft);
+    border: 1px solid var(--landing-border);
+    border-top-color: var(--landing-border-strong);
+    box-shadow:
+        inset 0 1px 0 0 rgba(255, 255, 255, 0.18),
+        inset 0 -1px 0 0 var(--landing-glass-lowlight),
+        0 24px 54px -38px var(--landing-glass-shadow);
+    backdrop-filter: blur(24px) saturate(170%);
+    -webkit-backdrop-filter: blur(24px) saturate(170%);
+    transition:
+        transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Sheen pseudo-element */
+.app-section-card::before {
+    content: '';
+    position: absolute;
+    inset: 1px;
+    border-radius: inherit;
+    background:
+        linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.00) 20%, rgba(255, 255, 255, 0.14) 42%, rgba(255, 255, 255, 0.04) 50%, transparent 68%);
+    opacity: 0.2;
+    transform: translateX(-18%) translateY(-6%);
+    transition: opacity 220ms cubic-bezier(0.22, 1, 0.36, 1), transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
+    z-index: 1;
+}
+
+@media (hover: hover) {
+    .app-section-card:hover {
+        transform: translateY(-2px);
+        border-color: var(--landing-border-strong);
+        box-shadow:
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.24),
+            inset 0 -1px 0 0 var(--landing-glass-lowlight),
+            0 32px 64px -36px var(--landing-glass-shadow);
+    }
+
+    .app-section-card:hover::before {
+        opacity: 0.45;
+        transform: translateX(3%) translateY(-8%);
+    }
+}
+
+.app-section-card__title {
+    color: var(--text-primary);
+    font-size: var(--fs-lg);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+.app-section-card__caption {
+    color: var(--text-secondary);
+    font-size: var(--fs-sm);
+    line-height: var(--lh-body);
+}
+
+/* ─── Two-column layout ──────────────────────────────────── */
+.app-two-col {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr);
+    gap: 18px;
+}
+
+.app-two-col--even {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.app-two-col--agent {
+    grid-template-columns: minmax(320px, 0.85fr) minmax(0, 1.15fr);
+}
+
+@media (max-width: 768px) {
+
+    .app-two-col,
+    .app-two-col--even,
+    .app-two-col--agent {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ─── Hash row ───────────────────────────────────────────── */
+.app-hash {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.04);
+    border-left: 3px solid var(--attest-500);
+}
+
+.app-hash__label {
+    color: var(--text-tertiary);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.app-hash__value {
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+    word-break: break-all;
+}
+
+/* ─── Version card (clickable timeline item) ─────────────── */
+.app-version-card {
+    text-align: left;
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    color: inherit;
+    cursor: pointer;
+    transition:
+        transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+        background 220ms cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 220ms cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.app-version-card--selected {
+    border-color: rgba(var(--accent-glow), 0.4);
+    background: rgba(var(--accent-glow), 0.10);
+}
+
+@media (hover: hover) {
+    .app-version-card:hover {
+        transform: translateY(-1px);
+        background: rgba(255, 255, 255, 0.06);
+        box-shadow: 0 12px 32px -16px rgba(0, 0, 0, 0.3);
+    }
+}
+
+/* ─── Route link card ────────────────────────────────────── */
+.app-route-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+    text-decoration: none;
+    transition:
+        transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+        background 160ms cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (hover: hover) {
+    .app-route-link:hover {
+        transform: translateY(-1px);
+        background: rgba(255, 255, 255, 0.08);
+        box-shadow: 0 8px 24px -12px rgba(0, 0, 0, 0.3);
+    }
+}
+
+/* ─── Contract card ──────────────────────────────────────── */
+.app-contract-card {
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: grid;
+    gap: 6px;
+    transition: transform 160ms ease, background 160ms ease;
+}
+
+@media (hover: hover) {
+    .app-contract-card:hover {
+        transform: translateY(-1px);
+        background: rgba(255, 255, 255, 0.07);
+    }
+}
+
+/* ─── Goal row ───────────────────────────────────────────── */
+.app-goal-row {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.app-goal-row:last-child {
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+/* ─── Badge ──────────────────────────────────────────────── */
+.app-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+}
+
+.app-badge--ok {
+    background: rgba(127, 183, 154, 0.14);
+    color: var(--ok-500);
+}
+
+.app-badge--attest {
+    background: rgba(227, 169, 74, 0.14);
+    color: var(--attest-500);
+}
+
+.app-badge--accent {
+    background: rgba(var(--accent-glow), 0.14);
+    color: var(--accent-200);
+}
+
+.app-badge--default {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-secondary);
+}
+
+/* ─── Family link card (for Agent page) ──────────────────── */
+.app-family-link {
+    display: block;
+    padding: var(--space-3) var(--space-4);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+    font-size: var(--fs-sm);
+    text-decoration: none;
+    transition: transform 160ms ease, background 160ms ease;
+}
+
+@media (hover: hover) {
+    .app-family-link:hover {
+        transform: translateY(-1px);
+        background: rgba(255, 255, 255, 0.08);
+    }
+}
+
+/* ─── Light theme overrides ──────────────────────────────── */
+:root[data-theme="light"] .app-stat-card {
+    background: rgba(255, 255, 255, 0.5);
+    border-color: rgba(0, 0, 0, 0.06);
+}
+
+:root[data-theme="light"] .app-section-card {
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.5) 100%);
+    border-color: rgba(0, 0, 0, 0.06);
+}
+
+:root[data-theme="light"] .app-version-card {
+    border-color: rgba(0, 0, 0, 0.08);
+    background: rgba(255, 255, 255, 0.4);
+}
+
+:root[data-theme="light"] .app-route-link,
+:root[data-theme="light"] .app-contract-card,
+:root[data-theme="light"] .app-family-link {
+    background: rgba(255, 255, 255, 0.5);
+    border-color: rgba(0, 0, 0, 0.06);
+}
+
+:root[data-theme="light"] .app-hash {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+:root[data-theme="light"] .app-goal-row {
+    border-bottom-color: rgba(0, 0, 0, 0.08);
+}

@@ -5,5 +5,5 @@ export {
 export type {
   KeeperHubClient as KeeperHubClientApi,
   KeeperHubClientConfig,
-  ActionSchema,
 } from "./client";
+export type { ActionSchema } from "@strategyforge/core";

@@ -4,6 +4,21 @@
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {
-    "test": "bun test"
+    "test": "forge test -v",
+    "test:coverage": "forge coverage --report lcov",
+    "deploy": "bun scripts/deploy.ts",
+    "deploy:testnet": "NETWORK=og_testnet RPC_URL=https://evmrpc-testnet.0g.ai bun scripts/deploy.ts",
+    "deploy:erc8004:testnet": "forge script script/DeployERC8004.s.sol:DeployERC8004 --rpc-url https://evmrpc-testnet.0g.ai --broadcast -vvv",
+    "gas-report": "forge test --gas-report",
+    "format": "forge fmt",
+    "lint": "solhint 'src/**/*.sol'",
+    "clean": "rm -rf out/ cache/",
+    "install:deps": "forge install OpenZeppelin/openzeppelin-contracts"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts-upgradeable": "^5.4.0"
+  },
+  "devDependencies": {
+    "forge-std": "github:foundry-rs/forge-std"
   }
 }

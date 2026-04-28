@@ -21,6 +21,7 @@ export interface ResearcherOutput {
   suitableActions: string[];
   signals: { subject?: string; protocol?: string; signal: string; severity: 'low' | 'medium' | 'high' }[];
   filteredOut: { protocol: string; reason: string }[];
+  rebalanceFrequency: string;  // Cron expression for portfolio rebalancing frequency
   evidence: StepEvidence;
 }
 
@@ -112,6 +113,9 @@ export class Researcher {
     // 6. Classify market regime deterministically
     const computedRegime = classifyRegime(protocols);
 
+    // 7. Calculate rebalancing frequency based on target yield aggressiveness
+    const rebalanceFrequency = calculateRebalanceFrequency(goal.targetYield);
+
     const inferResult = await this.inference.infer({
       systemPrompt: RESEARCHER_SYSTEM_PROMPT,
       userPrompt: buildUserPrompt(goal, actionSchemas, priorVersions, currentState),
@@ -119,9 +123,12 @@ export class Researcher {
     });
     if (!inferResult.ok) return err(inferResult.error);
 
-    let llmOut: any = {};
+    let llmOut: Record<string, unknown> = {};
     try {
-      llmOut = JSON.parse(inferResult.value.response);
+      const parsed: unknown = JSON.parse(inferResult.value.response);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        llmOut = parsed as Record<string, unknown>;
+      }
     } catch { /* non-fatal */ }
 
     const contextType = typeof llmOut.contextType === 'string' ? llmOut.contextType : 'yield';
@@ -163,7 +170,7 @@ export class Researcher {
       timestamp: Date.now(),
     };
 
-    return ok({ snapshot, regime: computedRegime, contextType, suitableActions, signals, filteredOut, evidence });
+    return ok({ snapshot, regime: computedRegime, contextType, suitableActions, signals, filteredOut, rebalanceFrequency, evidence });
   }
 }
 
@@ -181,7 +188,7 @@ function buildUserPrompt(
   goal: StrategyGoal,
   actionSchemas: ActionSchema[],
   priorVersions: EvidenceBundle[],
-  currentState: any,
+  currentState: Record<string, unknown>,
 ): string {
   const withOutcomes = priorVersions.filter(v => v.outcomes);
   const priorOutcomes = withOutcomes.map(v => ({ version: v.version, outcomes: v.outcomes, pipeline: v.pipeline }));
@@ -195,7 +202,7 @@ ${JSON.stringify(currentState, null, 2)}
 AVAILABLE ACTION TYPES:
 ${actionSchemas.map(s => s.type).join(', ')}
 
-${priorOutcomes.length > 0 ? `PRIOR VERSION OUTCOMES:\n${priorOutcomes.map(p => `v${p.version}: ${JSON.stringify(p.outcomes)}\nCritic rationale: ${(p.pipeline as any).critic?.output?.selectionRationale}`).join('\n\n')}` : 'No prior versions.'}`;
+${priorOutcomes.length > 0 ? `PRIOR VERSION OUTCOMES:\n${priorOutcomes.map(p => `v${p.version}: ${JSON.stringify(p.outcomes)}\nCritic rationale: ${(p.pipeline.critic.output as { selectionRationale?: string })?.selectionRationale ?? 'n/a'}`).join('\n\n')}` : 'No prior versions.'}`;
 }
 
 // Default action set per contextType — used only as a last-resort fallback
@@ -286,3 +293,21 @@ HARD RULES:
 - Always include "Condition" in suitableActions unless the workflow is unconditional.
 - Never include actions whose protocol does not appear in the snapshot, unless the
   user's goal explicitly names them.`;
+
+// Calculate rebalancing frequency based on target yield aggressiveness
+// More aggressive yields (higher target) require more frequent rebalancing
+function calculateRebalanceFrequency(targetYieldBps: number): string {
+  if (targetYieldBps >= 800) {
+    // Aggressive: 8%+ target → check every 6 hours
+    return '0 */6 * * *';
+  } else if (targetYieldBps >= 500) {
+    // Moderate-aggressive: 5-8% target → daily
+    return '0 12 * * *';
+  } else if (targetYieldBps >= 300) {
+    // Moderate: 3-5% target → 3x/week
+    return '0 12 * * 1,3,5';
+  } else {
+    // Conservative: <3% target → weekly
+    return '0 12 * * 1';
+  }
+}

@@ -34,6 +34,16 @@ export interface AnalyticsOutcome {
   networkBreakdown: { network: string; successRate: number }[];
 }
 
+// Learning: what failed in prior versions so Critic can avoid repeating it
+export interface FailurePattern {
+  version: number;
+  reason: string;           // Why it failed: "Aave governance", "insufficient liquidity", etc.
+  affectedProtocols: string[];  // Which protocols caused the problem
+  targetYield: number;      // BPS: what was the goal?
+  actualYield: number;      // BPS: what did it achieve?
+  gap: number;              // BPS: how much it missed by
+}
+
 // Input handed to PipelineOrchestrator by either CreateOrchestrator or UpdateOrchestrator
 export interface PipelineInput {
   goal: StrategyGoal;
@@ -43,4 +53,5 @@ export interface PipelineInput {
   actualOutcomes: AnalyticsOutcome | null;  // null on creation
   triggerReason: TriggerReason;
   emergencyUpdate: boolean;                 // true → deploy immediately, skip any user review window
+  failurePatterns?: FailurePattern[];       // Extracted from priorVersions; Critic learns from these
 }

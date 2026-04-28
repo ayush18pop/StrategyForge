@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it, mock } from "bun:test";
 import { config as loadDotEnv } from "dotenv";
 import { appendFileSync, existsSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type {
   EvidenceBundle,
   Result,
@@ -38,7 +39,7 @@ function loadEnvFromWorkspace(): void {
 
 loadEnvFromWorkspace();
 
-const LOG_PATH = join(import.meta.dir, "..", "out.log");
+const LOG_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "out.log");
 
 function initLog() {
   if (existsSync(LOG_PATH)) unlinkSync(LOG_PATH);
@@ -83,14 +84,15 @@ beforeAll(() => initLog());
 
 const LIVE_GOAL: StrategyGoal = {
   asset: "USDC",
-  amount: 50_000,
+  amount: 500,
   riskLevel: "balanced",
   horizon:
-    "12 months | Complex request: Design a production-ready, capital-preserving, cross-chain USDC automation strategy with max 1.5% monthly drawdown, max 40% per protocol, minimum 15% instantly withdrawable liquidity, max 3 state-changing tx per rebalance, strict oracle/bridge fail-safe behavior, dynamic regime-based allocation, APY smoothing, gas/slippage guards, rollback checks, and deterministic fallback escalation.",
+    "11 months | Complex request: Design a production-ready, capital-preserving, cross-chain USDC automation strategy with max 1.5% monthly drawdown, max 40% per protocol, minimum 15% instantly withdrawable liquidity, max 3 state-changing tx per rebalance, strict oracle/bridge fail-safe behavior, dynamic regime-based allocation, APY smoothing, gas/slippage guards, rollback checks, and deterministic fallback escalation.",
   chains: ["ethereum", "base"],
+  targetYield: 500,  // 5% target APY
 };
 
-const LIVE_COMPLEX_USER_REQUEST = `Design a production-ready, capital-preserving, cross-chain USDC automation strategy for 50,000 USD over a 12-month horizon that runs on Ethereum and Base and can be deployed as a KeeperHub DAG, but with strict operational constraints: maximum 1.5% monthly drawdown tolerance, no single protocol allocation above 40%, minimum 15% instantly withdrawable liquidity at all times, no more than 3 on-chain state-changing transactions per rebalance cycle, and hard fail-safe behavior under oracle or bridge anomalies.
+const LIVE_COMPLEX_USER_REQUEST = `Design a production-ready, capital-preserving, cross-chain USDC automation strategy for 500 USD over a 1-month horizon that runs on ethereum and can be deployed as a KeeperHub cyclic/asyclic graph workflow, but with strict operational constraints: maximum 1.5% monthly drawdown tolerance, no single protocol allocation above 40%, minimum 15% instantly withdrawable liquidity at all times, no more than 3 on-chain state-changing transactions per rebalance cycle, and hard fail-safe behavior under oracle or bridge anomalies.
 
 How would you architect the full workflow end-to-end, including trigger cadence, APY signal smoothing logic, protocol selection methodology (Aave, Morpho, Yearn, Spark, etc.), dynamic allocation rules under changing market regimes, explicit condition branching, approval and allowance hygiene, slippage and gas-aware execution guards, cross-chain transfer decision thresholds, staged degradation modes when data confidence falls, and rollback logic when post-trade health checks fail?
 
@@ -164,7 +166,7 @@ function withMockedAnalyticsFetch(workflowId: string): () => void {
   const originalFetch = globalThis.fetch;
 
   globalThis.fetch = mock(
-    async (input: RequestInfo | URL, init?: RequestInit) => {
+    async (input: string | URL | Request, init?: RequestInit) => {
       const rawUrl =
         typeof input === "string"
           ? input
@@ -714,7 +716,8 @@ describe("Live pipeline integration (opt-in)", () => {
     expect(evidenceStore.getLastBundle()?.strategyFamily).toBe(
       result.value.strategy.familyId,
     );
-  }, 240000);
+  // @ts-ignore — bun:test supports timeout as 3rd arg at runtime
+  }, 240_000);
 
   it("runs UpdateOrchestrator with real LLM/data and mocked KV + analytics + storage chain", async () => {
     const config = liveIntegrationConfig();
@@ -872,5 +875,6 @@ describe("Live pipeline integration (opt-in)", () => {
     } finally {
       restoreFetch();
     }
-  }, 240000);
+  // @ts-ignore — bun:test supports timeout as 3rd arg at runtime
+  }, 240_000);
 });
