@@ -207,24 +207,26 @@ export function PipelineLoadingScreen({ runId, isRunning, onComplete }: Props) {
         </motion.div>
 
         {/* Stage label — Instrument Serif */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentLabel}
-            className="loading-screen__stage"
-            initial={reduceMotion ? undefined : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
-            transition={{ duration: reduceMotion ? 0 : 0.25 }}
-            style={{
-              fontFamily: "var(--font-display)",
-              fontStyle: "italic",
-              fontSize: "clamp(18px, 2.5vw, 26px)",
-              letterSpacing: "-0.01em",
-            }}
-          >
-            {currentLabel}
-          </motion.div>
-        </AnimatePresence>
+        <div role="status" aria-live="polite" aria-atomic="true" style={{ display: "contents" }}>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentLabel}
+              className="loading-screen__stage"
+              initial={reduceMotion ? undefined : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
+              transition={{ duration: reduceMotion ? 0 : 0.25 }}
+              style={{
+                fontFamily: "var(--font-display)",
+                fontStyle: "italic",
+                fontSize: "clamp(18px, 2.5vw, 26px)",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              {currentLabel}
+            </motion.div>
+          </AnimatePresence>
+        </div>
 
         {/* Progress bar */}
         <div className="loading-screen__progress">

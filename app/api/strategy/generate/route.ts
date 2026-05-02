@@ -78,7 +78,7 @@ export async function POST(req: Request) {
     const selectedCandidate = sOut.output.candidates.find(
       (c: any) => c.id === cOut.output.selected,
     );
-    const workflowJson = compileWorkflow(selectedCandidate, user.walletAddress);
+    const workflowJson = compileWorkflow(selectedCandidate, user.walletAddress, '11155111', rOut.output.targetNetwork);
 
     const strategy = await Strategy.create({
       userId,

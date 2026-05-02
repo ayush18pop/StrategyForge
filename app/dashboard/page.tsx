@@ -19,15 +19,15 @@ export default function DashboardPage() {
   const [asset, setAsset] = useState("USDC");
   const [amount, setAmount] = useState("50000");
   const [riskLevel, setRiskLevel] = useState<"balanced" | "conservative">("balanced");
-
+  const [computePlatform, setComputePlatform] = useState<"0g" | "gemini" | "laguna">("gemini");
   const [horizon, setHorizon] = useState("6 months");
   const [chains, setChains] = useState("sepolia");
   const [targetYield, setTargetYield] = useState("800");
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  
+
   const [isPending, setIsPending] = useState(false);
   const [liveRunId, setLiveRunId] = useState<string | null>(null);
-  
+
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
@@ -42,10 +42,10 @@ export default function DashboardPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    
+
     setIsPending(true);
     setLiveRunId(`run-${Date.now()}`); // Start loading screen
-    
+
     try {
       const res = await fetch("/api/strategy/generate", {
         method: "POST",
@@ -57,9 +57,9 @@ export default function DashboardPage() {
           mockMode: false
         })
       });
-      
+
       const data = await res.json();
-      
+
       // We give the loading screen 8-10 seconds to finish its visual steps
       setTimeout(() => {
         setIsPending(false);
@@ -124,125 +124,150 @@ export default function DashboardPage() {
               </p>
             </motion.div>
 
-        <form className="generate-form glass-card" onSubmit={handleSubmit}>
-          <div className="generate-form__row">
-            <div className="generate-form__field">
-              <label className="generate-form__label" htmlFor="gen-asset">
-                TARGET ASSET
-              </label>
-              <input
-                id="gen-asset"
-                className="generate-form__input"
-                value={asset}
-                onChange={(e) => setAsset(e.target.value.toUpperCase())}
-                placeholder="USDC"
-              />
-            </div>
-            <div className="generate-form__field">
-              <label className="generate-form__label" htmlFor="gen-amount">
-                POSITION SIZE
-              </label>
-              <input
-                id="gen-amount"
-                className="generate-form__input"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="50000"
-              />
-            </div>
-          </div>
-
-          <div className="generate-form__field">
-            <span className="generate-form__label">RISK POSTURE</span>
-            <div className="generate-form__risk-group">
-              <button
-                type="button"
-                className={riskLevel === "balanced" ? "segmented-active" : "segmented-button"}
-                onClick={() => setRiskLevel("balanced")}
-              >
-                Balanced
-              </button>
-              <button
-                type="button"
-                className={riskLevel === "conservative" ? "segmented-active" : "segmented-button"}
-                onClick={() => setRiskLevel("conservative")}
-              >
-                Conservative
-              </button>
-            </div>
-          </div>
-
-
-
-          <button
-            type="button"
-            className="generate-form__advanced-toggle"
-            aria-expanded={advancedOpen}
-            onClick={() => setAdvancedOpen(!advancedOpen)}
-          >
-            <ChevronDown size={14} />
-            Advanced options
-          </button>
-
-          <div className="generate-form__advanced-fields" data-open={advancedOpen}>
-            <div className="generate-form__advanced-inner">
+            <form className="generate-form glass-card" onSubmit={handleSubmit}>
               <div className="generate-form__row">
                 <div className="generate-form__field">
-                  <label className="generate-form__label" htmlFor="gen-horizon">Horizon</label>
+                  <label className="generate-form__label" htmlFor="gen-asset">
+                    TARGET ASSET
+                  </label>
                   <input
-                    id="gen-horizon"
+                    id="gen-asset"
                     className="generate-form__input"
-                    value={horizon}
-                    onChange={(e) => setHorizon(e.target.value)}
+                    value={asset}
+                    onChange={(e) => setAsset(e.target.value.toUpperCase())}
+                    placeholder="USDC"
                   />
                 </div>
                 <div className="generate-form__field">
-                  <label className="generate-form__label" htmlFor="gen-yield">Target yield (bps)</label>
+                  <label className="generate-form__label" htmlFor="gen-amount">
+                    POSITION SIZE
+                  </label>
                   <input
-                    id="gen-yield"
+                    id="gen-amount"
                     className="generate-form__input"
-                    value={targetYield}
-                    onChange={(e) => setTargetYield(e.target.value)}
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="50000"
                   />
                 </div>
               </div>
+
               <div className="generate-form__field">
-                <label className="generate-form__label" htmlFor="gen-chains">Chains</label>
-                <input
-                  id="gen-chains"
-                  className="generate-form__input"
-                  value={chains}
-                  onChange={(e) => setChains(e.target.value)}
-                />
-              </div>
-              
-              <div className="generate-form__field">
-                <label className="generate-form__label">Turnkey Wallet (Auto-Provisioned)</label>
-                <div style={{
-                    padding: "10px 14px",
-                    borderRadius: "10px",
-                    border: "1px solid var(--edge-sides)",
-                    background: "var(--bg-3)",
-                    color: "var(--text-primary)",
-                    fontFamily: "var(--font-mono)",
-                    fontSize: "var(--fs-sm)",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                }}>
-                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--color-ok)", flexShrink: 0 }} />
-                  {user.walletAddress || "Connecting..."}
+                <span className="generate-form__label">RISK POSTURE</span>
+                <div className="generate-form__risk-group">
+                  <button
+                    type="button"
+                    className={riskLevel === "balanced" ? "segmented-active" : "segmented-button"}
+                    onClick={() => setRiskLevel("balanced")}
+                  >
+                    Balanced
+                  </button>
+                  <button
+                    type="button"
+                    className={riskLevel === "conservative" ? "segmented-active" : "segmented-button"}
+                    onClick={() => setRiskLevel("conservative")}
+                  >
+                    Conservative
+                  </button>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <button type="submit" className="generate-form__submit" disabled={isPending}
-            style={{ letterSpacing: "0.07em", textAlign: "left", borderRadius: "8px" }}
-          >
-            {isPending ? "SYNTHESIZING..." : "INITIATE FORGE"}
-          </button>
-        </form>
+              <div className="generate-form__field">
+                <span className="generate-form__label">AI Model</span>
+                <div className="generate-form__risk-group">
+                  <button
+                    type="button"
+                    className={computePlatform === "0g" ? "segmented-active" : "segmented-button"}
+                    onClick={() => setComputePlatform("0g")}
+                  >
+                    0G Network
+                  </button>
+                  <button
+                    type="button"
+                    className={computePlatform === "gemini" ? "segmented-active" : "segmented-button"}
+                    onClick={() => setComputePlatform("gemini")}
+                  >
+                    Gemini 2.0 Flash
+                  </button>
+                  <button
+                    type="button"
+                    className={computePlatform === "laguna" ? "segmented-active" : "segmented-button"}
+                    onClick={() => setComputePlatform("laguna")}
+                  >
+                    Laguna Model
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="generate-form__advanced-toggle"
+                aria-expanded={advancedOpen}
+                onClick={() => setAdvancedOpen(!advancedOpen)}
+              >
+                <ChevronDown size={14} />
+                Advanced options
+              </button>
+
+              <div className="generate-form__advanced-fields" data-open={advancedOpen}>
+                <div className="generate-form__advanced-inner">
+                  <div className="generate-form__row">
+                    <div className="generate-form__field">
+                      <label className="generate-form__label" htmlFor="gen-horizon">Horizon</label>
+                      <input
+                        id="gen-horizon"
+                        className="generate-form__input"
+                        value={horizon}
+                        onChange={(e) => setHorizon(e.target.value)}
+                      />
+                    </div>
+                    <div className="generate-form__field">
+                      <label className="generate-form__label" htmlFor="gen-yield">Target yield (bps)</label>
+                      <input
+                        id="gen-yield"
+                        className="generate-form__input"
+                        value={targetYield}
+                        onChange={(e) => setTargetYield(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="generate-form__field">
+                    <label className="generate-form__label" htmlFor="gen-chains">Chains</label>
+                    <input
+                      id="gen-chains"
+                      className="generate-form__input"
+                      value={chains}
+                      onChange={(e) => setChains(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="generate-form__field">
+                    <label className="generate-form__label">Turnkey Wallet (Auto-Provisioned)</label>
+                    <div style={{
+                      padding: "10px 14px",
+                      borderRadius: "10px",
+                      border: "1px solid var(--edge-sides)",
+                      background: "var(--bg-3)",
+                      color: "var(--text-primary)",
+                      fontFamily: "var(--font-mono)",
+                      fontSize: "var(--fs-sm)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                    }}>
+                      <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--color-ok)", flexShrink: 0 }} />
+                      {user.walletAddress || "Connecting..."}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <button type="submit" className="generate-form__submit" disabled={isPending}
+                style={{ letterSpacing: "0.07em", textAlign: "left", borderRadius: "8px" }}
+              >
+                {isPending ? "SYNTHESIZING..." : "INITIATE FORGE"}
+              </button>
+            </form>
 
             {!isPending && <SavedStrategies userId={user.userId} />}
           </div>
@@ -274,12 +299,12 @@ export default function DashboardPage() {
 
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {[
-                  { n: 1, label: "Discovery",     badge: "deterministic", desc: "Fetches live action schemas" },
-                  { n: 2, label: "Researcher",    badge: "tee",           desc: "Gathers market signals" },
-                  { n: 3, label: "Strategist",    badge: "tee",           desc: "Proposes candidate workflows" },
-                  { n: 4, label: "Critic",        badge: "tee",           desc: "Stress-tests candidates" },
-                  { n: 5, label: "Compiler",      badge: "deterministic", desc: "Compiles to deployable JSON" },
-                  { n: 6, label: "Risk Validator",badge: "deterministic", desc: "Validates safety bounds" },
+                  { n: 1, label: "Discovery", badge: "deterministic", desc: "Fetches live action schemas" },
+                  { n: 2, label: "Researcher", badge: "tee", desc: "Gathers market signals" },
+                  { n: 3, label: "Strategist", badge: "tee", desc: "Proposes candidate workflows" },
+                  { n: 4, label: "Critic", badge: "tee", desc: "Stress-tests candidates" },
+                  { n: 5, label: "Compiler", badge: "deterministic", desc: "Compiles to deployable JSON" },
+                  { n: 6, label: "Risk Validator", badge: "deterministic", desc: "Validates safety bounds" },
                 ].map(({ n, label, badge, desc }, i) => (
                   <motion.div
                     key={label}
@@ -440,7 +465,7 @@ function SavedStrategies({ userId }: { userId: string }) {
             </p>
             <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
-                v{s.version} · {new Date(s.createdAt).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}
+                v{s.version} · {new Date(s.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
               </span>
               <span style={{ fontSize: '10px', color: 'var(--accent-verify)', fontFamily: 'var(--font-mono)', opacity: 0.7 }}>
                 ◆ attested

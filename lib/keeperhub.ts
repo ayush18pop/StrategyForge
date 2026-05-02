@@ -44,7 +44,7 @@ export class KeeperHubClient {
 
   async executeWorkflow(workflowId: string) {
     // Note: singular /workflow/ not /workflows/
-    return this.request("POST", `/api/workflows/${workflowId}/execute`, {});
+    return this.request("POST", `/api/workflow/${workflowId}/execute`, {});
   }
 
   async getExecutionStatus(executionId: string) {

@@ -21,8 +21,34 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "StrategyForge — Autonomous DeFi Strategy Agent",
-  description: "Self-learning DeFi automation agent that generates, deploys, and improves KeeperHub workflows using LLM reasoning.",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://strategyforge.vercel.app"),
+  title: "StrategyForge — Every Inference, Attested.",
+  description: "Self-improving DeFi agent that generates, executes, and evolves KeeperHub workflows with verifiable inference. Every LLM reasoning step is attested. Every strategy version is anchored on 0G Chain.",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico" },
+    ],
+  },
+  openGraph: {
+    title: "StrategyForge — Every Inference, Attested.",
+    description: "Self-improving DeFi agent with verifiable on-chain strategy attestations. Built on 0G Chain + KeeperHub.",
+    type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "StrategyForge — self-improving DeFi agent",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "StrategyForge — Every Inference, Attested.",
+    description: "Self-improving DeFi agent with verifiable on-chain strategy attestations.",
+    images: ["/og-image.png"],
+  },
 };
 
 export default function RootLayout({

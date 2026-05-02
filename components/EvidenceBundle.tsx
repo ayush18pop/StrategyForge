@@ -24,6 +24,7 @@ function AttestationId({ id }: { id?: string }) {
     <button
       onClick={handleCopy}
       title="Click to copy request ID"
+      aria-label={`Copy OpenRouter request ID: ${id}`}
       style={{
         display: "inline-flex",
         alignItems: "center",

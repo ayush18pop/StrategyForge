@@ -95,7 +95,7 @@ export async function POST(req: Request) {
     );
     if (!selectedCandidate)
       throw new Error("Critic selected a candidate ID that does not exist");
-    const workflowJson = compileWorkflow(selectedCandidate, user.walletAddress);
+    const workflowJson = compileWorkflow(selectedCandidate, user.walletAddress, '11155111', rOut.output.targetNetwork);
 
     // Create new version strategy
     const newStrategy = await Strategy.create({

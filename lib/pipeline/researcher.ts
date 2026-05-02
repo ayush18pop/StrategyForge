@@ -12,12 +12,15 @@ You have access to these data inputs:
 Return this exact JSON structure:
 {
   "goalClassification": "yield_optimization" | "risk_monitoring" | "savings_automation" | "rebalancing",
+  "targetNetwork": "mainnet" | "polygon" | "arbitrum" | "optimism" | "base" | "sepolia" | "bsc",
   "relevantProtocols": string[],
   "currentState": object,
   "signals": { "subject": string, "signal": string, "severity": "low"|"medium"|"high" }[],
   "priorLessons": string[],
   "recommendation": string
-}`;
+}
+
+IMPORTANT: Extract targetNetwork from the user's goal. If the user says "polygon", "matic", "on polygon" → "polygon". "arbitrum", "arb" → "arbitrum". "optimism", "op" → "optimism". "base" → "base". Default to "mainnet" only if no network is mentioned.`;
 
 export async function runResearcher({
   openrouterApiKey,

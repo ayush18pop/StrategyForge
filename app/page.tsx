@@ -185,7 +185,7 @@ function EventCard({ event, isNew }: { event: LiveEvent; isNew: boolean }) {
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: -16, scale: 0.97 }}
+      initial={{ opacity: 0, y: -16, scale: 0.97, backgroundColor: "rgba(0,229,200,0)" }}
       animate={{
         opacity: 1,
         y: 0,
@@ -196,7 +196,7 @@ function EventCard({ event, isNew }: { event: LiveEvent; isNew: boolean }) {
             : "rgba(0,229,200,0.06)"
           : "rgba(255,255,255,0.02)",
       }}
-      exit={{ opacity: 0, scale: 0.95 }}
+      exit={{ opacity: 0, scale: 0.95, backgroundColor: "rgba(0,229,200,0)" }}
       transition={{ duration: 0.35, ease }}
       style={{
         borderRadius: "10px",
@@ -297,38 +297,43 @@ function LiveAttestationWall() {
       }}
     >
       {/* Wall header */}
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px", flexShrink: 0 }}>
-        <div
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "10px",
-            fontWeight: 700,
-            letterSpacing: "0.12em",
-            color: "var(--accent-verify)",
-          }}
-        >
-          LIVE ATTESTATION FEED
+      <div style={{ marginBottom: "8px", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
+          <div
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: "10px",
+              fontWeight: 700,
+              letterSpacing: "0.12em",
+              color: "var(--accent-verify)",
+            }}
+          >
+            LIVE ATTESTATION FEED
+          </div>
+          <motion.div
+            animate={{ opacity: [1, 0.3, 1] }}
+            transition={{ duration: 2.4, repeat: Infinity }}
+            style={{
+              width: 5,
+              height: 5,
+              borderRadius: "50%",
+              background: "var(--accent-verify)",
+              boxShadow: "0 0 8px var(--accent-verify)",
+            }}
+          />
+          <span
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: "9px",
+              color: "var(--text-tertiary)",
+            }}
+          >
+            {displayEvents.length} EVENTS · POLLING 8s
+          </span>
         </div>
-        <motion.div
-          animate={{ opacity: [1, 0.3, 1] }}
-          transition={{ duration: 2.4, repeat: Infinity }}
-          style={{
-            width: 5,
-            height: 5,
-            borderRadius: "50%",
-            background: "var(--accent-verify)",
-            boxShadow: "0 0 8px var(--accent-verify)",
-          }}
-        />
-        <span
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "9px",
-            color: "var(--text-tertiary)",
-          }}
-        >
-          {displayEvents.length} EVENTS · POLLING 8s
-        </span>
+        <p style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--text-tertiary)", margin: 0, lineHeight: 1.5 }}>
+          Real inference attestations from deployed strategies
+        </p>
       </div>
 
       {/* Event cards */}
@@ -392,8 +397,24 @@ function AuthForm() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
   const [btnText, setBtnText] = useState("INITIALIZE SESSION");
   const btnTargetRef = useRef("");
+
+  const handleDemoLogin = async () => {
+    setDemoLoading(true);
+    try {
+      const res = await fetch("/api/demo/login", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Demo login failed");
+      localStorage.setItem("user", JSON.stringify(data));
+      router.push("/dashboard");
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setDemoLoading(false);
+    }
+  };
 
   const typewriterEffect = (text: string) => {
     btnTargetRef.current = text;
@@ -617,6 +638,68 @@ function AuthForm() {
           {btnText}
         </button>
       </motion.form>
+
+      {/* Demo access */}
+      <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.06)" }} />
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: "9px", color: "var(--text-tertiary)", letterSpacing: "0.1em" }}>OR</span>
+        <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.06)" }} />
+      </div>
+
+      <button
+        type="button"
+        onClick={handleDemoLogin}
+        disabled={demoLoading}
+        style={{
+          padding: "13px 24px",
+          borderRadius: "8px",
+          border: "1px solid rgba(0,229,200,0.2)",
+          background: "rgba(0,229,200,0.05)",
+          color: demoLoading ? "rgba(0,229,200,0.4)" : "var(--accent-verify)",
+          fontFamily: "var(--font-mono)",
+          fontSize: "12px",
+          fontWeight: 700,
+          letterSpacing: "0.1em",
+          cursor: demoLoading ? "not-allowed" : "pointer",
+          transition: "all 0.2s",
+          width: "100%",
+        }}
+      >
+        {demoLoading ? "LOADING DEMO..." : "◆ TRY DEMO — No account needed"}
+      </button>
+
+      {/* Powered by 0G */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", paddingTop: "8px" }}>
+        <div style={{ height: "1px", flex: 1, background: "rgba(255,255,255,0.04)" }} />
+        <a
+          href="https://0g.ai"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "5px",
+            padding: "4px 10px",
+            borderRadius: "999px",
+            border: "1px solid rgba(227,169,74,0.2)",
+            background: "rgba(227,169,74,0.04)",
+            color: "var(--attest-500)",
+            fontFamily: "var(--font-mono)",
+            fontSize: "9px",
+            letterSpacing: "0.1em",
+            textDecoration: "none",
+            opacity: 0.8,
+            transition: "opacity 0.2s",
+            whiteSpace: "nowrap",
+          }}
+          onMouseOver={(e) => (e.currentTarget.style.opacity = "1")}
+          onMouseOut={(e) => (e.currentTarget.style.opacity = "0.8")}
+        >
+          <span style={{ fontSize: "10px" }}>⬡</span>
+          POWERED BY 0G NETWORK
+        </a>
+        <div style={{ height: "1px", flex: 1, background: "rgba(255,255,255,0.04)" }} />
+      </div>
     </div>
   );
 }

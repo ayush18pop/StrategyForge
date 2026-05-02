@@ -1,161 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { LayoutGrid, GitBranch, Rocket, ArrowUpRight } from "lucide-react";
+import { Rocket, GitBranch, ShieldCheck, CheckCircle2, AlertTriangle } from "lucide-react";
 import { AmbientLight } from "../../../components/glass/AmbientLight";
 import { ambientPresets } from "../../../components/glass/ambient-presets";
 import { EvidenceBundle } from "../../../components/EvidenceBundle";
-import { PipelineLoadingScreen } from "../../../components/pipeline/PipelineLoadingScreen";
 
-const KEEPERHUB_BASE = "https://app.keeperhub.com";
-const OG_EXPLORER = "https://chainscan-galileo.0g.ai";
 const easeOut = [0.22, 1, 0.36, 1] as const;
-
-function colorizeJson(json: string): string {
-  return json
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"([^"]+)":/g, '<span style="color:rgba(255,255,255,0.65)">"$1"</span>:')
-    .replace(/: "([^"]+)"/g, ': <span style="color:var(--accent-verify)">"$1"</span>')
-    .replace(/: (-?\d+\.?\d*)/g, ': <span style="color:var(--attest-500)">$1</span>')
-    .replace(/: (true|false|null)/g, ': <span style="color:var(--ok-500)">$1</span>');
-}
-
-function TrustBar({ version, wallet, lifecycle }: { version: number; wallet: string; lifecycle: string }) {
-  const chips = [
-    { label: "VERIFIED", value: "Trust Score 98/100", color: "var(--accent-verify)", bg: "rgba(0,229,200,0.08)", border: "rgba(0,229,200,0.25)" },
-    { label: `v${version}`, value: "LIVE ON 0G", color: "var(--attest-500)", bg: "rgba(227,169,74,0.08)", border: "rgba(227,169,74,0.25)" },
-    { label: "8.0% APY", value: "Target Yield", color: "var(--ok-500)", bg: "rgba(127,183,154,0.08)", border: "rgba(127,183,154,0.25)" },
-    { label: wallet ? `${wallet.slice(0, 6)}...${wallet.slice(-4)}` : "—", value: "Turnkey Enclave", color: "rgba(255,255,255,0.45)", bg: "rgba(255,255,255,0.04)", border: "rgba(255,255,255,0.1)" },
-  ];
-  return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
-      {chips.map((c) => (
-        <div key={c.label} style={{
-          display: "inline-flex", alignItems: "center", gap: "8px",
-          padding: "7px 14px", borderRadius: "8px",
-          border: `1px solid ${c.border}`, background: c.bg,
-        }}>
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: c.color, fontWeight: 700, letterSpacing: "0.05em" }}>
-            {c.label}
-          </span>
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--text-tertiary)", letterSpacing: "0.04em" }}>
-            {c.value}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function EvidenceLineage({ strategy }: { strategy: any }) {
-  return (
-    <div>
-      <div style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--accent-verify)", letterSpacing: "0.1em", marginBottom: "14px", fontWeight: 700 }}>
-        EVIDENCE LINEAGE
-      </div>
-      <p style={{ fontSize: "12px", color: "var(--text-tertiary)", fontFamily: "var(--font-mono)", marginBottom: "16px" }}>
-        On-chain anchors. Independently verifiable on 0G Chain.
-      </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
-        {strategy.priorVersionId && (
-          <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-              <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.2)", flexShrink: 0 }} />
-              <div style={{ width: "1px", background: "rgba(0,229,200,0.2)", flex: 1, minHeight: "40px" }} />
-            </div>
-            <div style={{ paddingBottom: "16px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: "var(--text-secondary)", fontWeight: 600 }}>
-                  v{strategy.version - 1}
-                </span>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--warn-500)", padding: "1px 6px", borderRadius: "4px", background: "rgba(224,122,106,0.1)" }}>
-                  DEPRECATED
-                </span>
-              </div>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--text-tertiary)" }}>
-                CID: {String(strategy.priorVersionId).slice(0, 8)}...
-                <span style={{ color: "var(--accent-verify)", marginLeft: "8px", cursor: "pointer" }}>[0G Chain →]</span>
-              </div>
-              {strategy.evidenceBundle?.step3_critic?.output?.evidenceOfLearning && (
-                <div style={{ marginTop: "6px", fontSize: "12px", color: "var(--text-tertiary)", fontStyle: "italic", maxWidth: "320px", lineHeight: 1.45 }}>
-                  "{strategy.evidenceBundle.step3_critic.output.priorLessonsApplied?.[0] || "Prior version lessons applied"}"
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-        <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: "var(--accent-verify)", boxShadow: "0 0 8px rgba(0,229,200,0.5)", flexShrink: 0 }} />
-          </div>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: "var(--text-primary)", fontWeight: 700 }}>
-                v{strategy.version}
-              </span>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--accent-verify)", padding: "1px 6px", borderRadius: "4px", background: "rgba(0,229,200,0.1)" }}>
-                {strategy.lifecycle?.toUpperCase() ?? "LIVE"}
-              </span>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--text-tertiary)" }}>← current</span>
-            </div>
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--text-tertiary)" }}>
-              CID: {String(strategy._id).slice(0, 8)}...
-              {strategy.agentRegistryCid && (
-                <span style={{ color: "var(--accent-verify)", marginLeft: "8px", cursor: "pointer" }}>[0G Chain →]</span>
-              )}
-            </div>
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--text-tertiary)", marginTop: "4px" }}>
-              {new Date(strategy.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function OnChainPanel({ strategy }: { strategy: any }) {
-  return (
-    <div style={{
-      padding: "20px",
-      borderRadius: "16px",
-      background: "rgba(227,169,74,0.04)",
-      border: "1px solid rgba(227,169,74,0.15)",
-    }}>
-      <div style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--attest-500)", letterSpacing: "0.1em", marginBottom: "14px", fontWeight: 700 }}>
-        ON-CHAIN ATTESTATIONS
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        <div>
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--text-tertiary)", letterSpacing: "0.06em", marginBottom: "3px" }}>
-            AGENT REGISTRY
-          </div>
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--accent-verify)", display: "flex", alignItems: "center", gap: "6px" }}>
-            {process.env.NEXT_PUBLIC_AGENT_REGISTRY_ADDRESS
-              ? `${process.env.NEXT_PUBLIC_AGENT_REGISTRY_ADDRESS.slice(0, 10)}...`
-              : strategy.agentRegistryCid ? `${strategy.agentRegistryCid.slice(0, 16)}...` : "Registered"}
-            <ArrowUpRight size={11} style={{ opacity: 0.5 }} />
-          </div>
-        </div>
-        <div style={{ height: "1px", background: "rgba(227,169,74,0.1)" }} />
-        <div>
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--text-tertiary)", letterSpacing: "0.06em", marginBottom: "3px" }}>
-            REPUTATION LEDGER TX
-          </div>
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--accent-verify)", display: "flex", alignItems: "center", gap: "6px" }}>
-            {strategy.reputationLedgerTxHash
-              ? `${strategy.reputationLedgerTxHash.slice(0, 10)}...`
-              : "Pending execution"}
-            {strategy.reputationLedgerTxHash && <ArrowUpRight size={11} style={{ opacity: 0.5 }} />}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+type ExecState = "idle" | "executing" | "done:success" | "done:suboptimal" | "done:failed";
+type EvolveState = "idle" | "evolving";
 
 export default function StrategyDetailPage() {
   const { id } = useParams();
@@ -164,9 +20,22 @@ export default function StrategyDetailPage() {
   const [strategy, setStrategy] = useState<any>(null);
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [isRegenerating, setIsRegenerating] = useState(false);
-  const [regenRunId, setRegenRunId] = useState<string | null>(null);
-  const [jsonCopied, setJsonCopied] = useState(false);
+  const [evolved, setEvolved] = useState(false);
+
+  const [execState, setExecState] = useState<ExecState>("idle");
+  const [execResult, setExecResult] = useState<any>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [evolveState, setEvolveState] = useState<EvolveState>("idle");
+  const [evolveStage, setEvolveStage] = useState(0);
+  const evolveTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setEvolved(new URLSearchParams(window.location.search).get("evolved") === "true");
+    }
+  }, []);
 
   useEffect(() => {
     const savedUser = localStorage.getItem("user");
@@ -175,278 +44,549 @@ export default function StrategyDetailPage() {
     setUser(u);
 
     fetch(`/api/strategy/${id}`, { headers: { Authorization: `Bearer ${u.token}` } })
-      .then((r) => r.json())
-      .then((data) => { if (data.strategy) setStrategy(data.strategy); else toast.error(data.error || "Not found"); })
-      .catch((e) => toast.error(e.message))
+      .then(r => r.json())
+      .then(d => { if (d.strategy) setStrategy(d.strategy); else toast.error(d.error || "Failed to load"); })
+      .catch(e => toast.error(e.message))
       .finally(() => setLoading(false));
   }, [id, router]);
 
+  async function handleExecute() {
+    setExecState("executing");
+    setElapsed(0);
+    elapsedRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
+    try {
+      const res = await fetch("/api/strategy/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
+        body: JSON.stringify({ strategyId: strategy._id }),
+      });
+      const data = await res.json();
+      if (elapsedRef.current) clearInterval(elapsedRef.current);
+      if (!res.ok) throw new Error(data.error);
+      setExecResult(data);
+      setExecState(data.suboptimal ? "done:suboptimal" : data.status === "failed" ? "done:failed" : "done:success");
+    } catch (e: any) {
+      if (elapsedRef.current) clearInterval(elapsedRef.current);
+      setExecState("done:failed");
+      toast.error(e.message);
+    }
+  }
+
+  async function handleEvolve() {
+    setEvolveState("evolving");
+    setEvolveStage(1);
+    const t1 = setTimeout(() => setEvolveStage(2), 9000);
+    const t2 = setTimeout(() => setEvolveStage(3), 22000);
+    evolveTimersRef.current = [t1, t2];
+    try {
+      const res = await fetch("/api/strategy/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
+        body: JSON.stringify({ strategyId: strategy._id }),
+      });
+      const data = await res.json();
+      evolveTimersRef.current.forEach(clearTimeout);
+      if (!res.ok) {
+        setEvolveState("idle");
+        setEvolveStage(0);
+        throw new Error(data.error);
+      }
+      setEvolveStage(3);
+      setTimeout(() => router.push(`/strategy/${data.newStrategyId}?evolved=true`), 1200);
+    } catch (e: any) {
+      setEvolveState("idle");
+      setEvolveStage(0);
+      toast.error(e.message);
+    }
+  }
+
   if (loading) return (
-    <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-mono)", fontSize: "13px", color: "var(--text-tertiary)" }}>
+    <div className="flex h-screen items-center justify-center text-text-secondary font-mono text-sm">
       Loading strategy telemetry...
     </div>
   );
-
   if (!strategy) return (
-    <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-mono)", fontSize: "13px", color: "var(--warn-500)" }}>
+    <div className="flex h-screen items-center justify-center text-hot-red font-mono text-sm">
       Strategy not found
     </div>
   );
 
-  const workflowJson = strategy.compiledWorkflow || strategy.workflowJson;
-  const nodeCount = workflowJson?.nodes?.length ?? "—";
-  const edgeCount = workflowJson?.edges?.length ?? "—";
-  const jsonStr = JSON.stringify(workflowJson, null, 2);
+  const evidenceOfLearning = strategy.evidenceBundle?.step3_critic?.output?.evidenceOfLearning;
+  const isV2Plus = strategy.version >= 2 && evidenceOfLearning;
 
   return (
-    <>
-      <PipelineLoadingScreen runId={regenRunId} isRunning={isRegenerating} onComplete={() => { }} />
-      <div className="app-page" style={{ position: "relative", minHeight: "100vh", padding: "var(--space-8) var(--space-8) var(--space-16)", maxWidth: "1100px", margin: "0 auto" }}>
-        <AmbientLight blobs={ambientPresets.hero} />
+    <div className="app-page" style={{ position: "relative", minHeight: "100vh", padding: "var(--space-6) var(--space-8)" }}>
+      <AmbientLight blobs={ambientPresets.hero} />
 
-        {/* ─── Header ─── */}
-        <motion.div
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: easeOut }}
-          style={{ marginBottom: "32px" }}
-        >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-            <span style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--text-tertiary)", letterSpacing: "0.1em" }}>
-              STRATEGY FAMILY
-            </span>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ padding: "3px 10px", borderRadius: "6px", background: "rgba(0,229,200,0.1)", border: "1px solid rgba(0,229,200,0.25)", color: "var(--accent-verify)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em", fontFamily: "var(--font-mono)" }}>
-                ✦ ERC-8004 iNFT
-              </span>
-              <button
-                onClick={() => router.push("/dashboard")}
-                style={{ display: "inline-flex", alignItems: "center", gap: "6px", height: "30px", padding: "0 12px", borderRadius: "999px", background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", fontSize: "11px", fontWeight: 600, border: "1px solid rgba(255,255,255,0.08)", cursor: "pointer", fontFamily: "var(--font-mono)" }}
-              >
-                ← FORGE
-              </button>
+      {/* ─── Evolution Complete Banner ─── */}
+      <AnimatePresence>
+        {evolved && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)",
+              zIndex: 50, background: "rgba(0,229,200,0.1)", border: "1px solid var(--accent-verify)",
+              borderRadius: 12, padding: "10px 24px", color: "var(--accent-verify)",
+              fontFamily: "var(--font-mono)", fontSize: 12, letterSpacing: 2,
+              pointerEvents: "none", whiteSpace: "nowrap",
+            }}
+          >
+            ◆ EVOLUTION COMPLETE — v{strategy.version} LIVE
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Evolution Pipeline Overlay ─── */}
+      <AnimatePresence>
+        {evolveState === "evolving" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: "fixed", inset: 0, background: "rgba(5,6,9,0.97)", zIndex: 100,
+              display: "flex", flexDirection: "column", alignItems: "center",
+              justifyContent: "center", gap: 28,
+            }}
+          >
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 4, color: "rgba(0,229,200,0.6)" }}>
+              EVOLUTION PIPELINE
             </div>
-          </div>
+            <div style={{ fontFamily: "var(--font-display)", fontSize: "clamp(28px,4vw,44px)", textAlign: "center", color: "var(--text-primary)", maxWidth: 480, lineHeight: 1.1 }}>
+              Learning from<br />v{strategy.version}
+            </div>
+            <div style={{ width: 340, display: "flex", flexDirection: "column", gap: 10 }}>
+              {([
+                { s: 1, label: "RESEARCHER", sub: "Injecting prior failure lessons" },
+                { s: 2, label: "STRATEGIST", sub: `Designing v${strategy.version + 1} candidates` },
+                { s: 3, label: "CRITIC", sub: "Generating evidence of learning" },
+              ] as const).map(({ s, label, sub }) => {
+                const done = evolveStage > s;
+                const active = evolveStage === s;
+                return (
+                  <div key={s} style={{
+                    display: "flex", alignItems: "center", gap: 14, padding: "12px 16px",
+                    borderRadius: 12,
+                    background: active ? "rgba(0,229,200,0.07)" : "rgba(255,255,255,0.02)",
+                    border: `1px solid ${done ? "rgba(0,229,200,0.5)" : active ? "rgba(0,229,200,0.25)" : "rgba(255,255,255,0.05)"}`,
+                    transition: "all 0.5s ease",
+                  }}>
+                    <div style={{
+                      width: 26, height: 26, borderRadius: "50%",
+                      border: `1.5px solid ${done ? "var(--accent-verify)" : active ? "rgba(0,229,200,0.5)" : "rgba(255,255,255,0.15)"}`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      flexShrink: 0, color: done ? "var(--accent-verify)" : "rgba(255,255,255,0.25)",
+                      fontSize: 10, fontFamily: "var(--font-mono)", fontWeight: 700,
+                    }}>
+                      {done ? "✓" : s}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: 2,
+                        color: done ? "var(--accent-verify)" : active ? "var(--text-primary)" : "rgba(255,255,255,0.25)",
+                      }}>
+                        {label}
+                      </div>
+                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 2 }}>{sub}</div>
+                    </div>
+                    {active && (
+                      <div style={{ width: 20, height: 2, borderRadius: 1, overflow: "hidden", background: "rgba(0,229,200,0.15)", position: "relative", flexShrink: 0 }}>
+                        <motion.div
+                          style={{ position: "absolute", top: 0, height: "100%", width: "60%", background: "var(--accent-verify)" }}
+                          animate={{ left: ["-60%", "160%"] }}
+                          transition={{ repeat: Infinity, duration: 1.4, ease: "linear" }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "rgba(255,255,255,0.2)", letterSpacing: 1 }}>
+              This takes 30–60 seconds · do not close this window
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-          <h1 style={{ fontFamily: "var(--font-display)", fontStyle: "italic", fontSize: "clamp(32px, 5vw, 52px)", lineHeight: 1.05, letterSpacing: "-0.02em", color: "var(--text-primary)", margin: "4px 0 16px" }}>
-            {strategy.familyId}
-          </h1>
-
-          <p style={{ color: "var(--text-secondary)", fontSize: "15px", lineHeight: 1.6, marginBottom: "20px", maxWidth: "680px" }}>
-            {strategy.goal}
-          </p>
-
-          <TrustBar version={strategy.version} wallet={user?.walletAddress ?? ""} lifecycle={strategy.lifecycle} />
-        </motion.div>
-
-        {/* ─── Deploy CTA ─── */}
+      {/* ─── Evidence of Learning Callout (v2+) ─── */}
+      {isV2Plus && (
         <motion.div
-          initial={{ opacity: 0, y: 14 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: easeOut, delay: 0.08 }}
-          style={{ marginBottom: "40px" }}
+          transition={{ duration: 0.5, ease: easeOut }}
+          style={{
+            maxWidth: "800px", margin: "0 auto 36px auto", padding: "24px 28px",
+            borderRadius: "20px", border: "2px solid var(--accent-verify)",
+            background: "rgba(0,229,200,0.05)",
+          }}
         >
-          {strategy.keeperhubWorkflowId ? (
-            <a
-              href={`${KEEPERHUB_BASE}/workflows/${strategy.keeperhubWorkflowId}`}
-              target="_blank"
-              rel="noopener noreferrer"
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 3, color: "var(--accent-verify)", marginBottom: 10 }}>
+            EVIDENCE OF LEARNING — v{strategy.version - 1} → v{strategy.version}
+          </div>
+          <p style={{ fontFamily: "var(--font-display)", fontSize: "clamp(16px,2vw,21px)", color: "var(--text-primary)", lineHeight: 1.5, margin: 0 }}>
+            &ldquo;{evidenceOfLearning}&rdquo;
+          </p>
+        </motion.div>
+      )}
+
+      {/* ─── Page Intro ─── */}
+      <motion.section
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: easeOut }}
+        style={{ marginBottom: "40px", maxWidth: "800px", margin: "0 auto 40px auto" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+          <span style={{ color: "var(--text-tertiary)", fontSize: "11px", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+            STRATEGY FAMILY
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span
+              title="ERC-8004 Intelligent NFT: this strategy is a living on-chain agent — it has memory, verifiable reasoning, and evolves over time."
               style={{
-                display: "inline-flex", alignItems: "center", gap: "10px",
-                padding: "12px 24px", borderRadius: "8px",
-                background: "var(--accent-forge)", color: "#0a0a0a",
-                fontSize: "13px", fontWeight: 700, fontFamily: "var(--font-mono)",
-                letterSpacing: "0.07em", textDecoration: "none",
+                padding: "4px 12px", borderRadius: "6px",
+                background: "rgba(91,108,255,0.12)", border: "1px solid rgba(91,108,255,0.4)",
+                color: "var(--accent-400)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.05em",
+                cursor: "help",
               }}
             >
-              <Rocket size={14} strokeWidth={2.5} />
-              OPEN ON KEEPERHUB
-              <ArrowUpRight size={13} strokeWidth={2.5} />
-            </a>
-          ) : (
-            <div>
-              <button
-                onClick={async () => {
-                  const t = toast.loading("Deploying to KeeperHub...");
-                  try {
-                    const res = await fetch("/api/strategy/deploy", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
-                      body: JSON.stringify({ strategyId: strategy._id }),
-                    });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.error);
-                    setStrategy({ ...strategy, keeperhubWorkflowId: data.workflowId });
-                    toast.success("Deployed to KeeperHub!", { id: t });
-                  } catch (e: any) { toast.error(e.message, { id: t }); }
-                }}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: "10px",
-                  padding: "12px 24px", borderRadius: "8px", cursor: "pointer",
-                  background: "var(--accent-forge)", color: "#0a0a0a",
-                  fontSize: "13px", fontWeight: 700, fontFamily: "var(--font-mono)",
-                  letterSpacing: "0.07em", border: "none",
-                }}
-              >
-                <Rocket size={14} strokeWidth={2.5} />
-                EXECUTE ON KEEPERHUB
-              </button>
-              {strategy.keeperhubWorkflowId && (
-                <div style={{ marginTop: "6px", fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--text-tertiary)" }}>
-                  Workflow: {strategy.keeperhubWorkflowId}
-                </div>
-              )}
-            </div>
-          )}
-        </motion.div>
-
-        {/* ─── Two-col grid ─── */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: easeOut, delay: 0.15 }}
-          style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "24px" }}
-        >
-          {/* LEFT: Payload + Audit Trail */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "24px", minWidth: 0 }}>
-            {/* Execution Payload */}
-            <div className="liquid-glass-shell" style={{ padding: "24px", borderRadius: "20px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
-                <div>
-                  <div style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--accent-verify)", letterSpacing: "0.1em", fontWeight: 700, marginBottom: "2px" }}>
-                    EXECUTION PAYLOAD
-                  </div>
-                  <div style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>
-                    {nodeCount} nodes · {edgeCount} edges
-                  </div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span style={{ padding: "3px 10px", borderRadius: "999px", background: "rgba(127,183,154,0.12)", border: "1px solid rgba(127,183,154,0.3)", color: "var(--ok-500)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.05em", fontFamily: "var(--font-mono)" }}>
-                    {strategy.lifecycle?.toUpperCase() ?? "LIVE"}
-                  </span>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(jsonStr);
-                      setJsonCopied(true);
-                      setTimeout(() => setJsonCopied(false), 1500);
-                    }}
-                    style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: jsonCopied ? "var(--accent-verify)" : "var(--text-tertiary)", letterSpacing: "0.06em", background: "none", border: "none", cursor: "pointer", transition: "color 0.2s" }}
-                  >
-                    {jsonCopied ? "COPIED" : "COPY JSON"}
-                  </button>
-                </div>
-              </div>
-              <pre
-                style={{ margin: 0, background: "rgba(0,0,0,0.35)", padding: "16px", borderRadius: "12px", overflowX: "auto", fontSize: "11px", fontFamily: "var(--font-mono)", border: "1px solid rgba(255,255,255,0.05)", maxHeight: "380px", lineHeight: 1.65 }}
-                dangerouslySetInnerHTML={{ __html: colorizeJson(jsonStr) }}
-              />
-            </div>
-
-            {/* Intelligence Audit Trail */}
-            <div className="liquid-glass-shell" style={{ padding: "24px", borderRadius: "20px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
-                <div style={{ width: "20px", height: "20px", borderRadius: "50%", border: "1.5px solid var(--accent-verify)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--accent-verify)" }} />
-                </div>
-                <div>
-                  <div style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--accent-verify)", letterSpacing: "0.1em", fontWeight: 700 }}>
-                    INTELLIGENCE AUDIT TRAIL
-                  </div>
-                  <div style={{ fontSize: "12px", color: "var(--text-tertiary)", marginTop: "2px" }}>
-                    Attested artifacts from the inference pipeline
-                  </div>
-                </div>
-              </div>
-              <EvidenceBundle
-                researcherOutput={strategy.rawEvidence?.researcher || strategy.evidenceBundle?.step1_researcher}
-                strategistOutput={strategy.rawEvidence?.strategist || strategy.evidenceBundle?.step2_strategist}
-                criticOutput={strategy.rawEvidence?.critic || strategy.evidenceBundle?.step3_critic}
-              />
-            </div>
+              ✦ ERC-8004 iNFT
+            </span>
+            <button
+              onClick={() => router.push("/dashboard")}
+              aria-label="Back to Strategy Synthesis dashboard"
+              style={{ display: "inline-flex", alignItems: "center", gap: "8px", height: "32px", padding: "0 12px", borderRadius: "999px", background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", fontSize: "12px", fontWeight: 600, border: "1px solid rgba(255,255,255,0.08)", cursor: "pointer" }}
+            >
+              ← FORGE
+            </button>
           </div>
+        </div>
+        <h1 style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)", fontSize: "clamp(36px,5vw,56px)", lineHeight: "1.05", letterSpacing: "-0.02em", marginTop: "4px" }}>
+          {strategy.familyId}
+        </h1>
+        <p style={{ color: "var(--text-secondary)", fontSize: "16px", lineHeight: "1.6", marginTop: "16px" }}>
+          {strategy.goal}
+        </p>
+      </motion.section>
 
-          {/* RIGHT: Action paths + On-chain + Lineage */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-            {/* Action paths */}
-            <div className="liquid-glass-shell" style={{ padding: "24px", borderRadius: "20px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--text-tertiary)", letterSpacing: "0.1em", marginBottom: "14px", fontWeight: 700 }}>
-                ACTION PATHS
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {strategy.keeperhubWorkflowId && (
+      {/* ─── Trust Bar ─── */}
+      <motion.div
+        style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "center", maxWidth: "800px", margin: "0 auto 40px auto" }}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: easeOut, delay: 0.08 }}
+      >
+        <TrustChip color="var(--accent-verify)" label="VERIFIED  Trust Score 98/100" />
+        <TrustChip color="var(--attest-500)" label={`v${strategy.version}  LIVE ON 0G`} />
+        <TrustChip color="var(--ok-500)" label="8.0% APY TARGET" />
+        {user?.walletAddress && (
+          <TrustChip color="rgba(255,255,255,0.3)" label={`${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`} mono />
+        )}
+      </motion.div>
+
+      {/* ─── Execute Panel ─── */}
+      <motion.div
+        className="liquid-glass-shell"
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: easeOut, delay: 0.12 }}
+        style={{ maxWidth: "800px", margin: "0 auto 40px auto", borderRadius: "24px", overflow: "hidden" }}
+      >
+        <AnimatePresence mode="wait">
+          {execState === "idle" && (
+            <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ padding: "28px 32px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
+                <div>
+                  <h2 style={{ fontSize: "18px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "4px" }}>
+                    {strategy.keeperhubWorkflowId ? "EXECUTE WORKFLOW" : "Deploy this strategy"}
+                  </h2>
+                  <p style={{ fontSize: "13px", color: "var(--text-secondary)" }}>
+                    {strategy.keeperhubWorkflowId
+                      ? `Workflow ${strategy.keeperhubWorkflowId} · Executes autonomously via Turnkey wallet`
+                      : "Compiled workflow is ready. Deploy it to KeeperHub to begin execution."}
+                  </p>
+                </div>
+                {strategy.keeperhubWorkflowId ? (
+                  <button
+                    onClick={handleExecute}
+                    aria-label={`Execute workflow ${strategy.keeperhubWorkflowId} on KeeperHub`}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: "8px", height: "44px",
+                      padding: "0 24px", borderRadius: "10px", background: "var(--accent-forge)",
+                      color: "#060809", fontSize: "13px", fontWeight: 800,
+                      fontFamily: "var(--font-mono)", letterSpacing: 1,
+                      border: "none", cursor: "pointer", flexShrink: 0, textTransform: "uppercase",
+                    }}
+                  >
+                    ▶ EXECUTE WORKFLOW
+                  </button>
+                ) : (
                   <button
                     onClick={async () => {
-                      const t = toast.loading("Executing strategy on KeeperHub...");
+                      const t = toast.loading("Deploying to KeeperHub...");
                       try {
-                        const res = await fetch("/api/strategy/execute", {
+                        const res = await fetch("/api/strategy/deploy", {
                           method: "POST",
-                          headers: { "Content-Type": "application/json" },
+                          headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
                           body: JSON.stringify({ strategyId: strategy._id }),
                         });
                         const data = await res.json();
                         if (!res.ok) throw new Error(data.error);
-                        toast.success(`Execution ${data.status}! ${data.stepLogs?.length || 0} steps completed.`, { id: t });
-                        if (data.reputationTxHash) {
-                          toast.success(`Reputation recorded on 0G: ${data.reputationTxHash.slice(0, 10)}...`);
-                        }
+                        setStrategy({ ...strategy, keeperhubWorkflowId: data.workflowId });
+                        toast.success("Deployed to KeeperHub!", { id: t });
                       } catch (e: any) {
                         toast.error(e.message, { id: t });
                       }
                     }}
-                    style={{ display: "flex", alignItems: "center", gap: "10px", color: "#0a0a0a", fontSize: "13px", padding: "12px 14px", borderRadius: "10px", background: "var(--accent-forge)", border: "none", cursor: "pointer", textAlign: "left", fontWeight: 700, fontFamily: "var(--font-mono)", letterSpacing: "0.05em" }}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: "8px", height: "44px",
+                      padding: "0 22px", borderRadius: "10px", background: "rgba(255,255,255,0.06)",
+                      color: "var(--text-primary)", fontSize: "13px", fontWeight: 700,
+                      border: "1px solid rgba(255,255,255,0.1)", cursor: "pointer", flexShrink: 0,
+                    }}
                   >
-                    <Rocket size={15} />
-                    RUN STRATEGY NOW
+                    <Rocket size={13} aria-hidden="true" /> Deploy to KeeperHub
                   </button>
                 )}
-                <button
-                  onClick={async () => {
-                    setIsRegenerating(true);
-                    setRegenRunId(`regen-${Date.now()}`);
-                    try {
-                      const res = await fetch("/api/cron/monitor", { method: "POST" });
-                      const data = await res.json();
-                      setTimeout(() => {
-                        setIsRegenerating(false);
-                        if (!res.ok) toast.error(data.error);
-                        else { toast.success(`Evolved! ${data.updates?.length || 0} workflow(s) regenerated.`); window.location.reload(); }
-                      }, 8500);
-                    } catch (e: any) { setIsRegenerating(false); toast.error(e.message); }
+              </div>
+            </motion.div>
+          )}
+
+          {execState === "executing" && (
+            <motion.div key="executing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ padding: "28px 32px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: 3, color: "var(--accent-verify)" }}>
+                  EXECUTING...
+                </div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 28, color: "var(--text-primary)", letterSpacing: -1 }}>
+                  {String(Math.floor(elapsed / 60)).padStart(2, "0")}:{String(elapsed % 60).padStart(2, "0")}
+                </div>
+              </div>
+              <div style={{ position: "relative", height: 2, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden", marginBottom: 16 }}>
+                <motion.div
+                  style={{ position: "absolute", top: 0, height: "100%", width: "35%", background: "linear-gradient(90deg, transparent, var(--accent-verify), transparent)" }}
+                  animate={{ left: ["-35%", "135%"] }}
+                  transition={{ repeat: Infinity, duration: 2.6, ease: "linear" }}
+                />
+              </div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(255,255,255,0.25)", letterSpacing: 1 }}>
+                Awaiting KeeperHub execution result
+              </div>
+            </motion.div>
+          )}
+
+          {(execState === "done:success" || execState === "done:suboptimal" || execState === "done:failed") && (
+            <motion.div key="done" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ padding: "28px 32px" }}>
+              {/* Outcome header */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  {execState === "done:success" && <CheckCircle2 size={16} color="var(--ok-500)" aria-hidden="true" />}
+                  {execState !== "done:success" && <AlertTriangle size={16} color={execState === "done:suboptimal" ? "var(--attest-500)" : "#ff4444"} aria-hidden="true" />}
+                  <span style={{
+                    fontFamily: "var(--font-mono)", fontSize: 12, letterSpacing: 2,
+                    color: execState === "done:success" ? "var(--ok-500)" : execState === "done:suboptimal" ? "var(--attest-500)" : "#ff4444",
+                  }}>
+                    {execState === "done:success" ? "EXECUTION COMPLETE" : execState === "done:suboptimal" ? "SUBOPTIMAL DETECTED" : "EXECUTION FAILED"}
+                  </span>
+                </div>
+                {execResult?.reputationTxHash && (
+                  <a
+                    href={`https://chainscan-galileo.0g.ai/tx/${execResult.reputationTxHash}`}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--attest-500)", textDecoration: "none", opacity: 0.8 }}
+                  >
+                    0G tx: {execResult.reputationTxHash.slice(0, 10)}... ↗
+                  </a>
+                )}
+              </div>
+
+              {/* Suboptimal reason pill */}
+              {execState === "done:suboptimal" && execResult?.suboptimalReason && (
+                <div style={{ padding: "12px 16px", borderRadius: 10, background: "rgba(227,169,74,0.07)", border: "1px solid rgba(227,169,74,0.2)", marginBottom: 16, fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--attest-500)" }}>
+                  {execResult.suboptimalReason}
+                </div>
+              )}
+
+              {/* Step logs */}
+              {execResult?.stepLogs?.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: execState === "done:suboptimal" ? 20 : 0 }}>
+                  {execResult.stepLogs.slice(0, 8).map((log: any, i: number) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+                      <div style={{ width: 5, height: 5, borderRadius: "50%", background: log.status === "success" ? "var(--ok-500)" : log.status === "failed" ? "#ff4444" : "rgba(255,255,255,0.2)", flexShrink: 0 }} />
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(255,255,255,0.45)", flex: 1 }}>
+                        {log.actionType || `step-${i + 1}`}
+                      </span>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: log.status === "success" ? "var(--ok-500)" : "rgba(255,255,255,0.3)" }}>
+                        {log.status}
+                      </span>
+                      {log.txHash && (
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--attest-500)" }}>
+                          {log.txHash.slice(0, 8)}...
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Evolve CTA — the money button */}
+              {execState === "done:suboptimal" && (
+                <motion.button
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6, ease: easeOut }}
+                  onClick={handleEvolve}
+                  style={{
+                    width: "100%", height: "52px", borderRadius: "12px",
+                    background: "var(--accent-forge)", color: "#060809",
+                    fontSize: "13px", fontWeight: 800, fontFamily: "var(--font-mono)",
+                    letterSpacing: 2, border: "none", cursor: "pointer",
+                    textTransform: "uppercase", display: "flex", alignItems: "center",
+                    justifyContent: "flex-start", paddingLeft: 20, gap: 12, marginTop: 4,
                   }}
-                  style={{ display: "flex", alignItems: "center", gap: "10px", color: "var(--accent-verify)", fontSize: "13px", padding: "12px 14px", borderRadius: "10px", background: "rgba(0,229,200,0.08)", border: "1px solid rgba(0,229,200,0.2)", cursor: "pointer", textAlign: "left", fontWeight: 600 }}
                 >
-                  <LayoutGrid size={15} />
-                  Force Auto-Regeneration Eval
+                  <span>⚡ EVOLVE STRATEGY →</span>
+                  <span style={{ fontSize: 11, opacity: 0.55, fontWeight: 400, letterSpacing: 0 }}>
+                    Generate v{strategy.version + 1} using v{strategy.version}&apos;s failure as training data
+                  </span>
+                </motion.button>
+              )}
+
+              {/* Reset for non-suboptimal */}
+              {execState !== "done:suboptimal" && (
+                <button
+                  onClick={() => { setExecState("idle"); setExecResult(null); }}
+                  style={{ marginTop: 14, fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(255,255,255,0.3)", background: "none", border: "none", cursor: "pointer", letterSpacing: 1 }}
+                >
+                  ↺ RUN AGAIN
                 </button>
-                <a
-                  href="#"
-                  style={{ display: "flex", alignItems: "center", gap: "10px", color: "var(--text-secondary)", fontSize: "13px", padding: "12px 14px", borderRadius: "10px", background: "rgba(255,255,255,0.025)", textDecoration: "none" }}
-                >
-                  <GitBranch size={15} />
-                  TRACE INTELLIGENCE →
-                </a>
-                <a
-                  href="/dashboard"
-                  style={{ display: "flex", alignItems: "center", gap: "10px", color: "var(--text-secondary)", fontSize: "13px", padding: "12px 14px", borderRadius: "10px", background: "rgba(255,255,255,0.025)", textDecoration: "none" }}
-                >
-                  <Rocket size={15} />
-                  ← FORGE
-                </a>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* ─── Two Col Layout ─── */}
+      <motion.div
+        style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "24px", maxWidth: "1200px", margin: "0 auto" }}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: easeOut, delay: 0.2 }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px", minWidth: 0 }}>
+          {/* Workflow JSON */}
+          <div className="liquid-glass-shell" style={{ padding: "24px", borderRadius: "24px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+              <div>
+                <h2 style={{ fontSize: "18px", fontWeight: 600, color: "var(--text-primary)" }}>EXECUTION PAYLOAD</h2>
+                <p style={{ fontSize: "13px", color: "var(--text-tertiary)", marginTop: "4px" }}>JSON payload executed by KeeperHub</p>
+              </div>
+              <span style={{ padding: "4px 10px", borderRadius: "999px", background: "rgba(127,183,154,0.12)", border: "1px solid rgba(127,183,154,0.3)", color: "var(--ok-500)", fontSize: "10px", fontWeight: 700, textTransform: "uppercase" }}>
+                LIVE
+              </span>
+            </div>
+            <pre style={{ background: "rgba(0,0,0,0.4)", padding: "20px", borderRadius: "16px", overflowX: "auto", fontSize: "12px", fontFamily: "var(--font-mono)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.05)", maxHeight: "400px" }}>
+              {JSON.stringify(strategy.compiledWorkflow || strategy.workflowJson, null, 2)}
+            </pre>
+          </div>
+
+          {/* Evidence Bundle */}
+          <div className="liquid-glass-shell" style={{ padding: "24px", borderRadius: "24px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+              <ShieldCheck className="text-acid-green" size={20} aria-hidden="true" />
+              <div>
+                <h2 style={{ fontSize: "18px", fontWeight: 600, color: "var(--text-primary)" }}>INTELLIGENCE AUDIT TRAIL</h2>
+                <p style={{ fontSize: "13px", color: "var(--text-tertiary)", marginTop: "2px" }}>TEE-attested artifacts from the inference pipeline</p>
               </div>
             </div>
+            <EvidenceBundle
+              researcherOutput={strategy.rawEvidence?.researcher || strategy.evidenceBundle?.step1_researcher}
+              strategistOutput={strategy.rawEvidence?.strategist || strategy.evidenceBundle?.step2_strategist}
+              criticOutput={strategy.rawEvidence?.critic || strategy.evidenceBundle?.step3_critic}
+            />
+          </div>
+        </div>
 
-            {/* On-chain attestations */}
-            <div className="liquid-glass-shell" style={{ padding: "24px", borderRadius: "20px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              <OnChainPanel strategy={strategy} />
-            </div>
-
-            {/* Evidence lineage */}
-            <div className="liquid-glass-shell" style={{ padding: "24px", borderRadius: "20px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              <EvidenceLineage strategy={strategy} />
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+          {/* On-chain attestations */}
+          <div className="liquid-glass-shell" style={{ padding: "24px", borderRadius: "24px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <h2 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>ON-CHAIN ATTESTATIONS</h2>
+            <div style={{ display: "grid", gap: "10px" }}>
+              {strategy.reputationLedgerTxHash ? (
+                <a
+                  href={`https://chainscan-galileo.0g.ai/tx/${strategy.reputationLedgerTxHash}`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderRadius: "10px", background: "rgba(227,169,74,0.05)", border: "1px solid rgba(227,169,74,0.2)", textDecoration: "none" }}
+                >
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--attest-500)", letterSpacing: 1 }}>REPUTATION LEDGER TX</span>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
+                    {strategy.reputationLedgerTxHash.slice(0, 10)}... ↗
+                  </span>
+                </a>
+              ) : null}
+              {strategy.agentRegistryCid ? (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderRadius: "10px", background: "rgba(0,229,200,0.04)", border: "1px solid rgba(0,229,200,0.15)" }}>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--accent-verify)", letterSpacing: 1 }}>AGENT REGISTRY CID</span>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
+                    {String(strategy.agentRegistryCid).slice(0, 12)}...
+                  </span>
+                </div>
+              ) : null}
+              {!strategy.reputationLedgerTxHash && !strategy.agentRegistryCid && (
+                <p style={{ fontSize: 12, color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>
+                  Execute workflow to write on-chain attestation.
+                </p>
+              )}
             </div>
           </div>
-        </motion.div>
-      </div>
-    </>
+
+          {/* Evidence Lineage */}
+          <div className="liquid-glass-shell" style={{ padding: "24px", borderRadius: "24px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <h2 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "8px" }}>EVIDENCE LINEAGE</h2>
+            <p style={{ fontSize: "13px", color: "var(--text-tertiary)", marginBottom: "16px" }}>
+              On-chain anchors. Independently verifiable on 0G Chain.
+            </p>
+            <div style={{ display: "grid", gap: "10px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "14px 16px", borderRadius: "12px", background: "rgba(127,183,154,0.06)", border: "1px solid rgba(127,183,154,0.15)" }}>
+                <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--ok-500)", flexShrink: 0 }} />
+                <span style={{ color: "var(--text-primary)", fontWeight: 700, fontSize: "13px", fontFamily: "var(--font-mono)" }}>
+                  v{strategy.version}
+                </span>
+                <span style={{ padding: "2px 8px", borderRadius: "999px", background: "rgba(127,183,154,0.15)", color: "var(--ok-500)", fontSize: "10px", fontWeight: 700 }}>
+                  LIVE
+                </span>
+                <span style={{ marginLeft: "auto", color: "var(--text-tertiary)", fontSize: "11px", fontFamily: "var(--font-mono)" }}>
+                  {strategy.createdAt ? new Date(strategy.createdAt).toLocaleDateString() : "Now"}
+                </span>
+              </div>
+              <button
+                onClick={() => toast.info("Lineage graph coming soon")}
+                aria-label="Trace intelligence lineage across strategy versions"
+                style={{ display: "flex", alignItems: "center", gap: "10px", color: "var(--text-secondary)", fontSize: "13px", padding: "12px 14px", borderRadius: "10px", background: "rgba(255,255,255,0.02)", border: "none", cursor: "pointer", textAlign: "left" }}
+              >
+                <GitBranch size={14} aria-hidden="true" /> TRACE INTELLIGENCE →
+              </button>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function TrustChip({ label, color, mono }: { label: string; color: string; mono?: boolean }) {
+  return (
+    <div style={{
+      padding: "6px 14px", borderRadius: "999px",
+      border: `1px solid ${color}`, color,
+      fontSize: "11px", fontWeight: 700,
+      fontFamily: mono ? "var(--font-mono)" : undefined,
+      letterSpacing: mono ? 0 : "0.05em", opacity: 0.9,
+    }}>
+      {label}
+    </div>
   );
 }

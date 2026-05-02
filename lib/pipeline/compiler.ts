@@ -1,14 +1,20 @@
 export function compileWorkflow(
   selectedCandidate: any,
   userWallet: string,
-  chainId: string = '11155111'  // Sepolia default
+  chainId: string = '11155111',  // Sepolia default
+  targetNetwork?: string
 ): any {
   const workflow = selectedCandidate.workflow;
 
   // Replace placeholders
-  const workflowStr = JSON.stringify(workflow)
+  let workflowStr = JSON.stringify(workflow)
     .replace(/USER_WALLET/g, userWallet)
     .replace(/CHAIN_ID/g, chainId);
+
+  // Override network if researcher detected a non-mainnet target
+  if (targetNetwork && targetNetwork !== 'mainnet') {
+    workflowStr = workflowStr.replace(/"network"\s*:\s*"mainnet"/g, `"network":"${targetNetwork}"`);
+  }
 
   const parsed = JSON.parse(workflowStr);
 
