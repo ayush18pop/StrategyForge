@@ -77,6 +77,10 @@ export async function llmCall(
     // ── Strip markdown fences (```json ... ```) that smaller models love to add ──
     content = content.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
 
+    // ── Strip inline backtick-quoted values that Qwen loves to produce ──
+    // e.g. `const x = 1` → "const x = 1"  (inside JSON string values)
+    content = content.replace(/`([^`]*)`/g, '"$1"');
+
     // ── Clean up common LLM JSON issues ───────────────────────────────────
     content = content
         .replace(/\u202f/g, ' ')  // narrow no-break space

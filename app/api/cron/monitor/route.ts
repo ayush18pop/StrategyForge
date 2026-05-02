@@ -16,19 +16,19 @@ import { compileWorkflow } from '../../../../lib/pipeline/compiler';
 export async function POST(req: Request) {
     try {
         await connectDB();
-        
+
         // Find strategies that are live
         const activeStrategies = await Strategy.find({ lifecycle: 'live' });
-        
+
         const updates = [];
-        
+
         for (const strategy of activeStrategies) {
             const user = await User.findById(strategy.userId);
             if (!user || !user.openrouterApiKey) continue;
-            
+
             // Mock market change check
             const needsEvolution = Math.random() > 0.5; // Simulate 50% chance of drift requiring regen
-            
+
             if (needsEvolution) {
                 // Read action schemas
                 const fs = require('fs');
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
                     description: s.description,
                     requiredFields: Object.keys(s.requiredFields || {})
                 }));
-                
+
                 // Run full evolution pipeline
                 const rOut = await runResearcher({
                     openrouterApiKey: user.openrouterApiKey,
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
                     actionSchemas,
                     priorLessons: ['Previous strategy underperformed in volatile conditions']
                 });
-                
+
                 const sOut = await runStrategist({
                     openrouterApiKey: user.openrouterApiKey,
                     model: process.env.MODEL_NAME || 'google/gemini-2.0-flash-exp:free',
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
                     walletAddress: user.walletAddress,
                     priorVersionWorkflow: strategy.workflowJson
                 });
-                
+
                 const cOut = await runCritic({
                     openrouterApiKey: user.openrouterApiKey,
                     model: process.env.MODEL_NAME || 'google/gemini-2.0-flash-exp:free',
@@ -68,21 +68,21 @@ export async function POST(req: Request) {
                     priorVersionCriticOutput: strategy.evidenceBundle?.step3_critic,
                     priorExecutionFailures: []
                 });
-                
+
                 let selectedCandidate = sOut.output.candidates.find((c: any) => c.id === cOut.output.selected);
                 if (!selectedCandidate && sOut.output.candidates && sOut.output.candidates.length > 0) {
                     selectedCandidate = sOut.output.candidates[0]; // fallback to the first candidate
                 }
-                
+
                 if (!selectedCandidate) {
                     throw new Error("Strategist failed to generate any valid workflow candidates.");
                 }
-                
+
                 const workflowJson = compileWorkflow(selectedCandidate, user.walletAddress);
                 // KeeperHub doesn't currently support updating a workflow via PUT /api/workflow/:id
                 // So we will just update our local DB to show the evolved Strategy Version.
                 // In production, we'd trigger a completely new deployment or handle versioning.
-                
+
                 // Update DB
                 strategy.version += 1;
                 strategy.workflowJson = workflowJson;
@@ -97,7 +97,7 @@ export async function POST(req: Request) {
                 updates.push({ familyId: strategy.familyId, version: strategy.version, status: 'No drift detected' });
             }
         }
-        
+
         return NextResponse.json({ success: true, processed: activeStrategies.length, updates });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });

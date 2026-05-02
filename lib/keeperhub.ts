@@ -1,5 +1,5 @@
 export class KeeperHubClient {
-  constructor(private apiKey: string) {}
+  constructor(private apiKey: string) { }
 
   private async request(method: string, path: string, body?: object) {
     const res = await fetch(`https://app.keeperhub.com${path}`, {
@@ -39,12 +39,12 @@ export class KeeperHubClient {
   }
 
   async updateWorkflow(workflowId: string, workflow: object) {
-    return this.request("PUT", `/api/workflow/${workflowId}`, workflow);
+    return this.request("PUT", `/api/workflows/${workflowId}`, workflow);
   }
 
   async executeWorkflow(workflowId: string) {
     // Note: singular /workflow/ not /workflows/
-    return this.request("POST", `/api/workflow/${workflowId}/execute`, {});
+    return this.request("POST", `/api/workflows/${workflowId}/execute`, {});
   }
 
   async getExecutionStatus(executionId: string) {

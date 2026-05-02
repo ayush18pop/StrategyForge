@@ -200,7 +200,7 @@ export default function StrategyDetailPage() {
 
   return (
     <>
-      <PipelineLoadingScreen runId={regenRunId} isRunning={isRegenerating} onComplete={() => {}} />
+      <PipelineLoadingScreen runId={regenRunId} isRunning={isRegenerating} onComplete={() => { }} />
       <div className="app-page" style={{ position: "relative", minHeight: "100vh", padding: "var(--space-8) var(--space-8) var(--space-16)", maxWidth: "1100px", margin: "0 auto" }}>
         <AmbientLight blobs={ambientPresets.hero} />
 
@@ -248,7 +248,7 @@ export default function StrategyDetailPage() {
         >
           {strategy.keeperhubWorkflowId ? (
             <a
-              href={`${KEEPERHUB_BASE}/workflow/${strategy.keeperhubWorkflowId}`}
+              href={`${KEEPERHUB_BASE}/workflows/${strategy.keeperhubWorkflowId}`}
               target="_blank"
               rel="noopener noreferrer"
               style={{
@@ -373,6 +373,32 @@ export default function StrategyDetailPage() {
                 ACTION PATHS
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {strategy.keeperhubWorkflowId && (
+                  <button
+                    onClick={async () => {
+                      const t = toast.loading("Executing strategy on KeeperHub...");
+                      try {
+                        const res = await fetch("/api/strategy/execute", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ strategyId: strategy._id }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.error);
+                        toast.success(`Execution ${data.status}! ${data.stepLogs?.length || 0} steps completed.`, { id: t });
+                        if (data.reputationTxHash) {
+                          toast.success(`Reputation recorded on 0G: ${data.reputationTxHash.slice(0, 10)}...`);
+                        }
+                      } catch (e: any) {
+                        toast.error(e.message, { id: t });
+                      }
+                    }}
+                    style={{ display: "flex", alignItems: "center", gap: "10px", color: "#0a0a0a", fontSize: "13px", padding: "12px 14px", borderRadius: "10px", background: "var(--accent-forge)", border: "none", cursor: "pointer", textAlign: "left", fontWeight: 700, fontFamily: "var(--font-mono)", letterSpacing: "0.05em" }}
+                  >
+                    <Rocket size={15} />
+                    RUN STRATEGY NOW
+                  </button>
+                )}
                 <button
                   onClick={async () => {
                     setIsRegenerating(true);

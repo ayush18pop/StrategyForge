@@ -19,7 +19,7 @@ export default function DashboardPage() {
   const [asset, setAsset] = useState("USDC");
   const [amount, setAmount] = useState("50000");
   const [riskLevel, setRiskLevel] = useState<"balanced" | "conservative">("balanced");
-  const [computePlatform, setComputePlatform] = useState<"0g" | "gemini" | "laguna">("gemini");
+
   const [horizon, setHorizon] = useState("6 months");
   const [chains, setChains] = useState("sepolia");
   const [targetYield, setTargetYield] = useState("800");
@@ -172,32 +172,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="generate-form__field">
-            <span className="generate-form__label">AI Model</span>
-            <div className="generate-form__risk-group">
-              <button
-                type="button"
-                className={computePlatform === "0g" ? "segmented-active" : "segmented-button"}
-                onClick={() => setComputePlatform("0g")}
-              >
-                0G Network
-              </button>
-              <button
-                type="button"
-                className={computePlatform === "gemini" ? "segmented-active" : "segmented-button"}
-                onClick={() => setComputePlatform("gemini")}
-              >
-                Gemini 2.0 Flash
-              </button>
-              <button
-                type="button"
-                className={computePlatform === "laguna" ? "segmented-active" : "segmented-button"}
-                onClick={() => setComputePlatform("laguna")}
-              >
-                Laguna Model
-              </button>
-            </div>
-          </div>
+
 
           <button
             type="button"
