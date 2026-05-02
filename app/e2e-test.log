@@ -1,0 +1,91 @@
+[2026-05-02T14:04:48.119Z] === StrategyForge E2E Test ===
+[2026-05-02T14:04:48.119Z] App URL
+"http://localhost:3000"
+[2026-05-02T14:04:48.119Z] KeeperHub API Key
+"kh_AdycoB_EP..."
+[2026-05-02T14:04:48.119Z] Wallet Address
+"0x7975E591c26e6c6D9B0CFd9A81f6d61A921C080c"
+
+────────────────────────────────────────────────────────────
+  STEP 1: Using existing user
+────────────────────────────────────────────────────────────
+[2026-05-02T14:04:48.119Z] Reusing existing user
+{
+  "userId": "69f5f3a3cc1888211f44c011",
+  "token": "69f5f3a3cc1888211f44c011"
+}
+
+────────────────────────────────────────────────────────────
+  STEP 2: KeeperHub wallet address
+────────────────────────────────────────────────────────────
+[2026-05-02T14:04:48.834Z] KeeperHub user info
+{
+  "id": "2eYZbtEsB3pxVNT2BViKWzjghGe5VqMK",
+  "name": "Ayush",
+  "email": "ayushsp05@gmail.com",
+  "image": "https://avatars.githubusercontent.com/u/110166845?v=4",
+  "isAnonymous": false,
+  "providerId": "github",
+  "walletAddress": "0x22e764eb5a63f0633835b7576d882dee5e2b8949"
+}
+[2026-05-02T14:04:48.834Z] KeeperHub turnkey wallet address: 0x22e764eb5a63f0633835b7576d882dee5e2b8949
+
+────────────────────────────────────────────────────────────
+  STEP 3: Generate strategy (LLM pipeline)
+────────────────────────────────────────────────────────────
+[2026-05-02T14:04:48.834Z] Goal
+"Monitor my Aave position on Sepolia and alert me if health factor drops below threshold"
+[2026-05-02T14:05:10.824Z] Generate response (strategyId + evidenceBundle)
+{
+  "strategyId": "69f60496778abb26ac111e71",
+  "researcher": {
+    "goalClassification": "risk_monitoring",
+    "relevantProtocols": [
+      "Aave V3"
+    ],
+    "currentState": {
+      "usdcBalance": "50000 USDC"
+    },
+    "signals": [],
+    "priorLessons": [],
+    "recommendation": "Set up a workflow that uses the 'Aave V3: Get User Account Data' to monitor the health factor of your Aave position on Sepolia. Add a condition to check if the health factor is below a threshold. If it is, have the workflow send a Discord message alerting you."
+  },
+  "strategistCandidates": [
+    {
+      "id": "A",
+      "name": "Aave V3 Health Factor Monitor with Discord Alert",
+      "hypothesis": "Monitoring health factor and receiving alerts proactively will minimize liquidation risk and allow for timely adjustments to the position."
+    },
+    {
+      "id": "B",
+      "name": "Aave V3 Health Factor Monitor with Telegram alert",
+      "hypothesis": "Monitoring health factor and receiving Telegram alerts proactively will minimize liquidation risk and allow for timely adjustments to the position for Telegram users."
+    }
+  ],
+  "criticSelected": "A",
+  "criticRationale": "Both candidates are essentially identical except for the alert destination (Discord vs. Telegram). Discord is generally easier to configure for automated alerts than telegram, which often requires more intricate bot setup and user configuration. Choosing candidate A because it's more 'plug and play'."
+}
+
+────────────────────────────────────────────────────────────
+  STEP 4: Deploy strategy to KeeperHub
+────────────────────────────────────────────────────────────
+[2026-05-02T14:05:11.497Z] Deploy response
+{
+  "workflowId": "zcu2rgeqfa64j5lfu906x",
+  "keeperhubUrl": "https://app.keeperhub.com/workflows/zcu2rgeqfa64j5lfu906x"
+}
+[2026-05-02T14:05:11.497Z] KeeperHub workflow URL: https://app.keeperhub.com/workflow/zcu2rgeqfa64j5lfu906x
+
+────────────────────────────────────────────────────────────
+  STEP 5: Inject fake suboptimal execution (false positive)
+────────────────────────────────────────────────────────────
+[2026-05-02T14:05:11.497Z] Connecting to MongoDB...
+[2026-05-02T14:05:12.204Z] Fake execution injected
+{
+  "executionId": "69f604971831e4ae0dbacb3f",
+  "suboptimalReason": "Alert fired but health factor was 1.62 (above 1.4) — threshold too sensitive, causing false positive"
+}
+
+────────────────────────────────────────────────────────────
+  STEP 6: Trigger strategy evolution (v2 LLM pipeline)
+────────────────────────────────────────────────────────────

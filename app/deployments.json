@@ -1,0 +1,8 @@
+{
+  "network": "og-testnet",
+  "rpc": "https://evmrpc-testnet.0g.ai",
+  "deployer": "0x7975E591c26e6c6D9B0CFd9A81f6d61A921C080c",
+  "AgentRegistry": "0x6274f0A5277c468Eb338EE8986D5Fd157C9A6338",
+  "ReputationLedger": "0x727C72Bf5ED69Db4dCB2604ef2FAA856C90c636B",
+  "deployedAt": "2026-05-02T12:38:00.848Z"
+}

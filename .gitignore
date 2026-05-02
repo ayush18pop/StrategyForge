@@ -1,0 +1,9 @@
+node_modules/
+.next/
+.env
+.env.*
+.DS_Store
+*.pem
+.vexp/
+.claude/
+scripts/
