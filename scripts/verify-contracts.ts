@@ -57,7 +57,7 @@ async function main() {
     const balance = await provider.getBalance(wallet.address);
     console.log(`Balance:            ${ethers.formatEther(balance)} A0GI\n`);
 
-    if (balance === 0n) {
+    if (balance === BigInt(0)) {
         console.error('⚠️  Wallet has 0 balance — contract calls will fail');
         console.log('   Get testnet tokens from: https://faucet.0g.ai/');
     }
