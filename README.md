@@ -2,7 +2,7 @@
 
 StrategyForge is a self-improving DeFi agent that generates, executes, and evolves KeeperHub workflows with verifiable inference — every LLM reasoning step carries an OpenRouter attestation ID, and every strategy version is anchored on-chain via 0G Chain.
 
-**Live demo:** `https://strategyforge.ayush.works` *(update after deployment)*
+**Live demo:** `https://strategyforge.ayush.works` 
 
 ---
 
