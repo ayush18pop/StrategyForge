@@ -11,11 +11,7 @@ import { registryRegister, ledgerRecord } from "../../../../lib/contracts";
 
 export async function POST(req: Request) {
   try {
-    const {
-      userId,
-      goal,
-      model = process.env.MODEL_NAME,
-    } = await req.json();
+    const { userId, goal, model = process.env.MODEL_NAME } = await req.json();
     await connectDB();
     const user = await User.findById(userId);
     if (!user) throw new Error("User not found");
@@ -34,7 +30,7 @@ export async function POST(req: Request) {
     // Read schemas from local dump file instead of live API to ensure all context is available
     const fs = require("fs");
     const path = require("path");
-    const dumpPath = path.join(process.cwd(), "../action-schemas.dump.json");
+    const dumpPath = path.join(process.cwd(), "action-schemas.dump.json");
     const schemasData = JSON.parse(fs.readFileSync(dumpPath, "utf-8"));
     const rawSchemas = schemasData.schemas ?? schemasData;
 
@@ -42,7 +38,7 @@ export async function POST(req: Request) {
     const actionSchemas = rawSchemas.map((s: any) => ({
       actionType: s.actionType,
       description: s.description,
-      requiredFields: Object.keys(s.requiredFields || {})
+      requiredFields: Object.keys(s.requiredFields || {}),
     }));
 
     // Step 1: Researcher
@@ -79,7 +75,12 @@ export async function POST(req: Request) {
     const selectedCandidate = sOut.output.candidates.find(
       (c: any) => c.id === cOut.output.selected,
     );
-    const workflowJson = compileWorkflow(selectedCandidate, user.walletAddress, '11155111', rOut.output.targetNetwork);
+    const workflowJson = compileWorkflow(
+      selectedCandidate,
+      user.walletAddress,
+      "11155111",
+      rOut.output.targetNetwork,
+    );
 
     const familyId = `strat-${Date.now()}`;
 

@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     // Read schemas from local dump file instead of live API
     const fs = require("fs");
     const path = require("path");
-    const dumpPath = path.join(process.cwd(), "../action-schemas.dump.json");
+    const dumpPath = path.join(process.cwd(), "action-schemas.dump.json");
     const schemasData = JSON.parse(fs.readFileSync(dumpPath, "utf-8"));
     const actionSchemas = schemasData.schemas ?? schemasData;
     const priorLessons = [lastExecution.outcome.suboptimalReason].filter(
@@ -95,7 +95,12 @@ export async function POST(req: Request) {
     );
     if (!selectedCandidate)
       throw new Error("Critic selected a candidate ID that does not exist");
-    const workflowJson = compileWorkflow(selectedCandidate, user.walletAddress, '11155111', rOut.output.targetNetwork);
+    const workflowJson = compileWorkflow(
+      selectedCandidate,
+      user.walletAddress,
+      "11155111",
+      rOut.output.targetNetwork,
+    );
 
     // Create new version strategy
     const newStrategy = await Strategy.create({
