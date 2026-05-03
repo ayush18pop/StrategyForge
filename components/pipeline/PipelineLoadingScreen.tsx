@@ -129,7 +129,7 @@ export function PipelineLoadingScreen({ runId, isRunning, onComplete }: Props) {
     setLiveFeed((prev) => [`[${stamp}]  ${latest.message}`, ...prev].slice(0, 8));
 
     if (latest.status === "done" && ["researcher", "strategist", "critic"].includes(latest.stage)) {
-      const reqId = `or-req-${Math.random().toString(36).slice(2, 9)}`;
+      const reqId = `att-${Math.random().toString(36).slice(2, 9)}`;
       setAttestations((prev) => [
         ...prev,
         { label: TEE_STEP_LABELS[latest.stage] ?? `${latest.stage} ATTESTED`, reqId },

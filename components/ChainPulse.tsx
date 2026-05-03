@@ -193,9 +193,9 @@ export function ChainPulse() {
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               {[
                 {
-                  label: "AGENT REGISTRY",
+                  label: "INFT REGISTRY",
                   addr: data.contracts.agentRegistry,
-                  stat: data.agentCount !== null ? `${data.agentCount} agent${data.agentCount !== 1 ? "s" : ""}` : null,
+                  stat: data.agentCount !== null ? `${data.agentCount} INFT${data.agentCount !== 1 ? "s" : ""}` : null,
                 },
                 {
                   label: "REPUTATION LEDGER",
@@ -203,7 +203,13 @@ export function ChainPulse() {
                   stat: data.reputationRecords !== null ? `${data.reputationRecords} record${data.reputationRecords !== 1 ? "s" : ""}` : null,
                 },
               ].map(({ label, addr, stat }) => (
-                <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <a
+                  key={label}
+                  href={addr ? `https://chainscan-galileo.0g.ai/address/${addr}` : "#"}
+                  target={addr ? "_blank" : undefined}
+                  rel="noopener noreferrer"
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", textDecoration: "none", cursor: addr ? "pointer" : "default" }}
+                >
                   <div>
                     <div
                       style={{
@@ -223,7 +229,7 @@ export function ChainPulse() {
                         color: addr ? "rgba(227,169,74,0.75)" : "var(--text-tertiary)",
                       }}
                     >
-                      {addr ? truncAddr(addr) : "NOT DEPLOYED"}
+                      {addr ? `${truncAddr(addr)} ↗` : "NOT DEPLOYED"}
                     </div>
                   </div>
                   {stat && (
@@ -241,7 +247,7 @@ export function ChainPulse() {
                       {stat}
                     </span>
                   )}
-                </div>
+                </a>
               ))}
             </div>
           </div>

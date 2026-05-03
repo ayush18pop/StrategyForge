@@ -12,12 +12,19 @@ async function pollStatus(kh: KeeperHubClient, executionId: string, maxMs = 6000
     const maxAttempts = maxMs / interval;
     for (let i = 0; i < maxAttempts; i++) {
         const status = await kh.getExecutionStatus(executionId);
-        if (status.status === 'completed' || status.status === 'failed' || status.status === 'success') {
+        if (['completed', 'failed', 'success', 'error', 'cancelled', 'stopped'].includes(status.status)) {
             return status;
         }
         await new Promise(r => setTimeout(r, interval));
     }
     return { status: 'timeout' };
+}
+
+function mapStepStatus(status: string | undefined, hasError: boolean | string): string {
+  if (status === "success" || status === "succeeded") return "success";
+  if (status === "failed" || status === "error" || hasError) return "failed";
+  if (status === "skipped") return "skipped";
+  return hasError ? "failed" : "success";
 }
 
 export async function POST(req: Request) {
@@ -57,7 +64,7 @@ export async function POST(req: Request) {
 
         const mappedStatus = finalStatus.status === 'completed' ? 'success'
             : finalStatus.status === 'failed' ? 'failed'
-            : finalStatus.status === 'timeout' ? 'partial'
+            : finalStatus.status === 'error' ? 'failed' : finalStatus.status === 'timeout' ? 'partial'
             : 'running';
 
         // Extract metrics from logs (look for health factor, yield)
@@ -72,7 +79,7 @@ export async function POST(req: Request) {
         execution.stepLogs = stepLogs.map((l: any) => ({
             stepId: l.stepId ?? l.id,
             actionType: l.actionType ?? l.type,
-            status: l.status ?? 'success',
+            status: mapStepStatus(l.status, l.error || l.output?.error),
             output: l.output ?? {},
             txHash: l.txHash ?? null,
             error: l.error ?? null,
@@ -88,9 +95,10 @@ export async function POST(req: Request) {
         // Write to ReputationLedger on 0G Chain (best-effort)
         let reputationTxHash: string | null = null;
         try {
+            const agentId = strategy.onChainAgentId ?? 1; // fallback for legacy strategies
             const successRateBps = suboptimalResult.suboptimal ? 0 : 10000;
             const result = await ledgerRecord(
-                1,
+                agentId,
                 strategy.familyId,
                 successRateBps,
                 strategyId.toString(),

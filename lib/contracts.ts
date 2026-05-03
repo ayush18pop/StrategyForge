@@ -27,6 +27,20 @@ function getSigner() {
     return new ethers.Wallet(privateKey, getProvider());
 }
 
+export async function registryRegister(metadataCid: string): Promise<{ txHash: string; agentId: number }> {
+    const address = process.env.AGENT_REGISTRY_ADDRESS;
+    if (!address) throw new Error('AGENT_REGISTRY_ADDRESS env var not set');
+    const contract = new ethers.Contract(address, REGISTRY_ABI, getSigner());
+    const tx = await contract.register(metadataCid);
+    const receipt = await tx.wait();
+    // Parse the AgentRegistered event to get the agentId
+    const event = receipt.logs
+        .map((log: any) => { try { return contract.interface.parseLog(log); } catch { return null; } })
+        .find((e: any) => e?.name === 'AgentRegistered');
+    const agentId = event ? Number(event.args.agentId) : 1;
+    return { txHash: tx.hash, agentId };
+}
+
 export async function registryUpdate(agentId: number, metadataCid: string): Promise<{ txHash: string }> {
     const address = process.env.AGENT_REGISTRY_ADDRESS;
     if (!address) throw new Error('AGENT_REGISTRY_ADDRESS env var not set');

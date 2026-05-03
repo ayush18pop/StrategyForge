@@ -67,8 +67,8 @@ export function ActivityTicker() {
   const displayEvents: TickerEvent[] = events.length > 0
     ? events
     : [
-        { id: "ph1", type: "attestation", label: "◆ RESEARCHER ATTESTED", value: "or-v1-demo-seed", ts: new Date(Date.now() - 60000).toISOString() },
-        { id: "ph2", type: "attestation", label: "◆ STRATEGIST ATTESTED", value: "or-v1-demo-seed", ts: new Date(Date.now() - 55000).toISOString() },
+        { id: "ph1", type: "attestation", label: "◆ RESEARCHER ATTESTED", value: "att-demo-seed-v1-1a2b", ts: new Date(Date.now() - 60000).toISOString() },
+        { id: "ph2", type: "attestation", label: "◆ STRATEGIST ATTESTED", value: "att-demo-seed-v1-3c4d", ts: new Date(Date.now() - 55000).toISOString() },
         { id: "ph3", type: "onchain",     label: "⬡ ON-CHAIN ANCHORED",   value: "0xdemo...anchor", ts: new Date(Date.now() - 50000).toISOString() },
       ];
 

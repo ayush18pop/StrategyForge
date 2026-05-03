@@ -34,6 +34,8 @@ const StrategySchema = new mongoose.Schema({
 
     agentRegistryCid: { type: String },
     reputationLedgerTxHash: { type: String },
+    onChainAgentId: { type: Number, default: null },
+    registryTxHash: { type: String },
 
     createdAt: { type: Date, default: Date.now },
     deployedAt: { type: Date }

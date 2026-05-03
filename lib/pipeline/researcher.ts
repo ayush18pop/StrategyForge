@@ -20,7 +20,9 @@ Return this exact JSON structure:
   "recommendation": string
 }
 
-IMPORTANT: Extract targetNetwork from the user's goal. If the user says "polygon", "matic", "on polygon" → "polygon". "arbitrum", "arb" → "arbitrum". "optimism", "op" → "optimism". "base" → "base". Default to "mainnet" only if no network is mentioned.`;
+IMPORTANT: Extract targetNetwork from the user's goal. If the user says "polygon", "matic", "on polygon" → "polygon". "arbitrum", "arb" → "arbitrum". "optimism", "op" → "optimism". "base" → "base". Default to "mainnet" only if no network is mentioned.
+
+CRITICAL — PRIOR FAILURES: If priorLessons is non-empty, treat each lesson as a HARD CONSTRAINT. These are real execution failures from the previous version. You MUST recommend alternative protocols that avoid the exact failure described. Never suggest a protocol/network combination that appears in priorLessons.`;
 
 export async function runResearcher({
   openrouterApiKey,

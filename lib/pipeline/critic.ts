@@ -3,17 +3,18 @@ import { llmCall } from '../openrouter';
 const SYSTEM_PROMPT = `You are an adversarial DeFi strategy critic. Evaluate the provided candidate workflow.
 Return JSON only.
 
-If this is v2+, you MUST reference prior version failures explicitly in your rationale.
-The "evidenceOfLearning" field must contain a direct quote explaining what v1 got wrong
-and how this version fixes it. This field cannot be empty for v2+.
+If this is v2+, you MUST:
+1. Check that the candidate does NOT use any protocol/network combination listed in priorExecutionFailures. If it does, you MUST flag this as a fatal flaw in attacksOnRejected and the evidenceOfLearning must specifically call out what the previous version got wrong.
+2. The "evidenceOfLearning" field must name the SPECIFIC protocol that failed, the SPECIFIC network it failed on, and what alternative was chosen instead. Generic statements like "we improved the strategy" are NOT acceptable.
+3. "priorLessonsApplied" must list each failure from priorExecutionFailures and how it was addressed.
 
 Return exactly this JSON:
 {
   "selected": "<id of the candidate>",
   "rationale": "Why this candidate is sound",
-  "attacksOnRejected": "Potential attack vectors or weaknesses in this candidate",
+  "attacksOnRejected": "Potential attack vectors or weaknesses — MUST call out if candidate repeats prior failures",
   "priorLessonsApplied": string[],
-  "evidenceOfLearning": string,
+  "evidenceOfLearning": "MUST name: what failed, on which network, and what alternative was chosen",
   "riskWarnings": string[]
 }`;
 

@@ -7,6 +7,7 @@ import { runResearcher } from "../../../../lib/pipeline/researcher";
 import { runStrategist } from "../../../../lib/pipeline/strategist";
 import { runCritic } from "../../../../lib/pipeline/critic";
 import { compileWorkflow } from "../../../../lib/pipeline/compiler";
+import { registryRegister, ledgerRecord } from "../../../../lib/contracts";
 
 export async function POST(req: Request) {
   try {
@@ -36,7 +37,7 @@ export async function POST(req: Request) {
     const dumpPath = path.join(process.cwd(), "../action-schemas.dump.json");
     const schemasData = JSON.parse(fs.readFileSync(dumpPath, "utf-8"));
     const rawSchemas = schemasData.schemas ?? schemasData;
-    
+
     // Compress schemas to fit within LLM token limits (e.g. 16k context on free models)
     const actionSchemas = rawSchemas.map((s: any) => ({
       actionType: s.actionType,
@@ -80,9 +81,11 @@ export async function POST(req: Request) {
     );
     const workflowJson = compileWorkflow(selectedCandidate, user.walletAddress, '11155111', rOut.output.targetNetwork);
 
+    const familyId = `strat-${Date.now()}`;
+
     const strategy = await Strategy.create({
       userId,
-      familyId: `strat-${Date.now()}`,
+      familyId,
       version: 1,
       goal,
       lifecycle: "draft",
@@ -94,10 +97,44 @@ export async function POST(req: Request) {
       },
     });
 
+    // ── On-chain: Register agent on 0G AgentRegistry ──────────────────────
+    // Each strategy family gets its own on-chain agentId
+    try {
+      const metadataCid = JSON.stringify({
+        type: "strategyforge-agent",
+        familyId,
+        strategyId: strategy._id.toString(),
+        goal,
+        version: 1,
+        createdAt: new Date().toISOString(),
+      });
+      const regResult = await registryRegister(metadataCid);
+      strategy.onChainAgentId = regResult.agentId;
+      strategy.registryTxHash = regResult.txHash;
+      strategy.agentRegistryCid = metadataCid;
+
+      // Record initial reputation entry (v1, no execution yet, neutral score)
+      const ledgerResult = await ledgerRecord(
+        regResult.agentId,
+        familyId,
+        5000, // 50% — neutral initial score
+        strategy._id.toString(),
+      );
+      strategy.reputationLedgerTxHash = ledgerResult.txHash;
+
+      await strategy.save();
+    } catch (e: any) {
+      console.warn("On-chain registration failed (non-critical):", e.message);
+      // Save strategy anyway — on-chain is best-effort
+      await strategy.save();
+    }
+
     return NextResponse.json({
       strategyId: strategy._id,
       workflowJson,
       evidenceBundle: strategy.evidenceBundle,
+      onChainAgentId: strategy.onChainAgentId,
+      registryTxHash: strategy.registryTxHash,
     });
   } catch (error: any) {
     console.error("Strategy generation error:", error);

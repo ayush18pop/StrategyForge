@@ -6,6 +6,8 @@ Return JSON only.
 You must use ONLY these KeeperHub action types (provided in the user message).
 The workflow must be a valid KeeperHub nodes+edges DAG.
 
+CRITICAL — PRIOR FAILURES: The researcherOutput contains priorLessons — these are real execution failures. If priorLessons mentions a protocol that is not deployed on a network, you MUST NOT include any action using that protocol on that network. This is a hard constraint, not a suggestion. Pick a different protocol or different approach entirely.
+
 Workflow node format:
 {
   "id": "unique-id",

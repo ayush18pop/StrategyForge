@@ -52,14 +52,33 @@ export async function llmCall(
         body.response_format = { type: 'json_object' };
     }
 
-    // ── Fire request ──────────────────────────────────────────────────────
-    const res = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body)
-    });
+    // ── Fire request with retry on 429 ───────────────────────────────────
+    const MAX_RETRIES = 3;
+    let res!: Response;
+    let data: any;
 
-    const data = await res.json();
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        res = await fetch(endpoint, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body)
+        });
+
+        data = await res.json();
+
+        if (res.status !== 429) break;
+
+        // Parse retry-after from error message or use exponential backoff
+        const errMsg = data?.error?.message ?? '';
+        const waitMatch = errMsg.match(/wait (\d+) seconds/);
+        const waitSecs = waitMatch ? parseInt(waitMatch[1]) : Math.pow(2, attempt + 1) * 5;
+
+        if (attempt < MAX_RETRIES) {
+            console.log(`${backendLabel} rate limited — waiting ${waitSecs}s (attempt ${attempt + 1}/${MAX_RETRIES})`);
+            await new Promise(r => setTimeout(r, waitSecs * 1000));
+        }
+    }
+
     const requestId = res.headers.get('x-request-id') ?? data.id ?? `${backendLabel}-${Date.now()}`;
 
     if (!res.ok || !data.choices?.[0]) {

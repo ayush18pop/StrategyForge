@@ -17,12 +17,34 @@ export function detectSuboptimal(
         };
     }
 
-    // Pattern 2: Workflow step failed
-    const failedStep = execution.stepLogs?.find((l: any) => l.status === 'failed');
+    // Pattern 2: Workflow step failed (check status OR error presence)
+    const failedStep = execution.stepLogs?.find((l: any) =>
+        l.status === 'failed' ||
+        (l.error && l.error.length > 0) ||
+        l.error?.message ||
+        (l.output?.error && typeof l.output.error === 'string')
+    );
     if (failedStep) {
+        const errorMsg = failedStep.error ||
+                        failedStep.output?.error ||
+                        'unknown error';
+        const actionLabel = failedStep.actionType || failedStep.stepId || 'unknown action';
+
+        // Parse out protocol/network from the error message for a more actionable reason
+        const notDeployedMatch = errorMsg.match?.(/Protocol "([^"]+)" .* not deployed on network "([^"]+)"/i);
+        if (notDeployedMatch) {
+            const [, protocol, network] = notDeployedMatch;
+            return {
+                suboptimal: true,
+                reason: `Action "${actionLabel}" failed because protocol "${protocol}" is NOT deployed on network "${network}". ` +
+                        `DO NOT use any "${protocol}" actions on "${network}" in the next version. ` +
+                        `Use a different protocol that is available on "${network}", or change the target network.`
+            };
+        }
+
         return {
             suboptimal: true,
-            reason: `Step "${failedStep.actionType}" failed: ${failedStep.error}`
+            reason: `Action "${actionLabel}" failed with error: ${errorMsg}. Avoid this action or fix its configuration in the next version.`
         };
     }
 
